@@ -83,8 +83,13 @@ COPY . /app
 RUN mkdir -p /app/log
 
 # clean up non-production files
+# Preserve spec/support/extension_consumer_stub/ because Gemfile.lock references
+# that path (CI-only :extension_consumer_stub group, EVO-1378). Bundler validates
+# the path at runtime startup even when the group is excluded via BUNDLE_WITHOUT.
 RUN if [ "$RAILS_ENV" = "production" ]; then \
-  rm -rf spec node_modules tmp/cache; \
+  find spec -mindepth 1 -maxdepth 1 ! -name support -exec rm -rf {} + && \
+  find spec/support -mindepth 1 -maxdepth 1 ! -name extension_consumer_stub -exec rm -rf {} + && \
+  rm -rf node_modules tmp/cache; \
   fi
 
 # Write git SHA to file (passed as build arg, falls back to "unknown")
