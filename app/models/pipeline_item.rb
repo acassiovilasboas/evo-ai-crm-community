@@ -62,6 +62,8 @@ class PipelineItem < ApplicationRecord
   after_destroy :publish_pipeline_item_deleted
 
   scope :in_stage, ->(stage) { where(pipeline_stage: stage) }
+  scope :active, -> { where(completed_at: nil) }
+  scope :completed, -> { where.not(completed_at: nil) }
 
   def move_to_stage(new_stage, _moved_by = nil)
     return false if new_stage.pipeline != pipeline
