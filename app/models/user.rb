@@ -2,50 +2,48 @@
 #
 # Table name: users
 #
-#  id                                                                                                                 :uuid             not null, primary key
-#  availability                                                                                                       :integer          default(0)
-#  confirmation_sent_at                                                                                               :datetime
-#  confirmation_token                                                                                                 :string
-#  confirmed_at                                                                                                       :datetime
-#  consumed_timestep                                                                                                  :integer
-#  current_sign_in_at                                                                                                 :datetime
-#  current_sign_in_ip                                                                                                 :string
-#  custom_attributes                                                                                                  :jsonb
-#  display_name                                                                                                       :string
-#  email                                                                                                              :string
-#  email_otp_attempts                                                                                                 :integer          default(0)
-#  email_otp_secret                                                                                                   :string
-#  email_otp_sent_at                                                                                                  :datetime
-#  encrypted_password                                                                                                 :string           default(""), not null
-#  failed_mfa_attempts                                                                                                :integer          default(0)
-#  last_mfa_failure_at                                                                                                :datetime
-#  last_sign_in_at                                                                                                    :datetime
-#  last_sign_in_ip                                                                                                    :string
-#  message_signature                                                                                                  :text
-#  mfa_confirmed_at                                                                                                   :datetime
-#  mfa_method                                                                                                         :integer          default(0), not null
-#  name                                                                                                               :string           not null
-#  otp_backup_codes                                                                                                   :text             default([]), is an Array
-#  otp_required_for_login                                                                                             :boolean          default(FALSE), not null
-#  otp_secret                                                                                                         :string
-#  provider                                                                                                           :string           default("email"), not null
-#  pubsub_token                                                                                                       :string
-#  remember_created_at                                                                                                :datetime
-#  reset_password_sent_at                                                                                             :datetime
-#  reset_password_token                                                                                               :string
-#  sign_in_count                                                                                                      :integer          default(0), not null
-#  tokens                                                                                                             :json
-#  type                                                                                                               :string
-#  ui_settings                                                                                                        :jsonb
-#  uid                                                                                                                :string           default(""), not null
-#  unconfirmed_email                                                                                                  :string
-#  created_at                                                                                                         :datetime         not null
-#  updated_at                                                                                                         :datetime         not null
-#  tenant_id(Tenant isolation column. RLS policy enforces tenant_id = current_setting('app.current_tenant_id')::uuid) :uuid             not null
+#  id                     :uuid             not null, primary key
+#  availability           :integer          default(0)
+#  confirmation_sent_at   :datetime
+#  confirmation_token     :string
+#  confirmed_at           :datetime
+#  consumed_timestep      :integer
+#  current_sign_in_at     :datetime
+#  current_sign_in_ip     :string
+#  custom_attributes      :jsonb
+#  display_name           :string
+#  email                  :string
+#  email_otp_attempts     :integer          default(0)
+#  email_otp_secret       :string
+#  email_otp_sent_at      :datetime
+#  encrypted_password     :string           default(""), not null
+#  failed_mfa_attempts    :integer          default(0)
+#  last_mfa_failure_at    :datetime
+#  last_sign_in_at        :datetime
+#  last_sign_in_ip        :string
+#  message_signature      :text
+#  mfa_confirmed_at       :datetime
+#  mfa_method             :integer          default(0), not null
+#  name                   :string           not null
+#  otp_backup_codes       :text             default([]), is an Array
+#  otp_required_for_login :boolean          default(FALSE), not null
+#  otp_secret             :string
+#  provider               :string           default("email"), not null
+#  pubsub_token           :string
+#  remember_created_at    :datetime
+#  reset_password_sent_at :datetime
+#  reset_password_token   :string
+#  sign_in_count          :integer          default(0), not null
+#  tokens                 :json
+#  type                   :string
+#  ui_settings            :jsonb
+#  uid                    :string           default(""), not null
+#  unconfirmed_email      :string
+#  created_at             :datetime         not null
+#  updated_at             :datetime         not null
 #
 # Indexes
 #
-#  idx_users_tenant_id_id                 (tenant_id,id)
 #  index_users_on_email                   (email)
 #  index_users_on_email_otp_sent_at       (email_otp_sent_at)
 #  index_users_on_mfa_method              (mfa_method)

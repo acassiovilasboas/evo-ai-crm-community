@@ -4,28 +4,26 @@
 #
 # Table name: message_templates
 #
-#  id                                                                                                                 :uuid             not null, primary key
-#  active                                                                                                             :boolean          default(TRUE)
-#  category                                                                                                           :string
-#  channel_type                                                                                                       :string           not null
-#  components                                                                                                         :jsonb
-#  content                                                                                                            :text             not null
-#  language                                                                                                           :string           default("pt_BR")
-#  media_type                                                                                                         :string
-#  media_url                                                                                                          :string
-#  metadata                                                                                                           :jsonb
-#  name                                                                                                               :string           not null
-#  settings                                                                                                           :jsonb
-#  template_type                                                                                                      :string
-#  variables                                                                                                          :jsonb
-#  created_at                                                                                                         :datetime         not null
-#  updated_at                                                                                                         :datetime         not null
-#  channel_id                                                                                                         :uuid             not null
-#  tenant_id(Tenant isolation column. RLS policy enforces tenant_id = current_setting('app.current_tenant_id')::uuid) :uuid             not null
+#  id            :uuid             not null, primary key
+#  active        :boolean          default(TRUE)
+#  category      :string
+#  channel_type  :string           not null
+#  components    :jsonb
+#  content       :text             not null
+#  language      :string           default("pt_BR")
+#  media_type    :string
+#  media_url     :string
+#  metadata      :jsonb
+#  name          :string           not null
+#  settings      :jsonb
+#  template_type :string
+#  variables     :jsonb
+#  created_at    :datetime         not null
+#  updated_at    :datetime         not null
+#  channel_id    :uuid             not null
 #
 # Indexes
 #
-#  idx_message_templates_tenant_id_id  (tenant_id,id)
 #  idx_templates_active_by_channel     (channel_type,channel_id,active)
 #  idx_templates_by_category           (category)
 #  idx_templates_by_name               (name)
