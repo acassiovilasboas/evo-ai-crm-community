@@ -592,7 +592,7 @@ class Api::V1::PipelineItemsController < Api::V1::BaseController
   end
 
   def apply_filters
-    # By default show only active items; pass status=completed to see completed, status=all for everything
+    # Status filter: active (default), completed, all
     case params[:status]
     when 'completed'
       @pipeline_items = @pipeline_items.where.not(completed_at: nil)
@@ -602,8 +602,50 @@ class Api::V1::PipelineItemsController < Api::V1::BaseController
       @pipeline_items = @pipeline_items.where(completed_at: nil)
     end
 
+    # Temporal filters for completed/lost items
+    # completed_after: ISO8601 date — items completed after this date
+    # completed_before: ISO8601 date — items completed before this date
+    # completed_period: last_7d, last_30d, last_90d, last_year, this_month, this_year
+    if params[:completed_period].present?
+      range = temporal_range(params[:completed_period])
+      @pipeline_items = @pipeline_items.where(completed_at: range) if range
+    else
+      if params[:completed_after].present?
+        @pipeline_items = @pipeline_items.where('completed_at >= ?', Time.zone.parse(params[:completed_after]))
+      end
+      if params[:completed_before].present?
+        @pipeline_items = @pipeline_items.where('completed_at <= ?', Time.zone.parse(params[:completed_before]))
+      end
+    end
+
+    # Entered date filters
+    if params[:entered_after].present?
+      @pipeline_items = @pipeline_items.where('entered_at >= ?', Time.zone.parse(params[:entered_after]))
+    end
+    if params[:entered_before].present?
+      @pipeline_items = @pipeline_items.where('entered_at <= ?', Time.zone.parse(params[:entered_before]))
+    end
+
     @pipeline_items = filter_by_stage if params[:stage_id].present?
     @pipeline_items = search_conversations if params[:search].present?
+  end
+
+  def temporal_range(period)
+    now = Time.current
+    case period
+    when 'last_7d'
+      7.days.ago..now
+    when 'last_30d'
+      30.days.ago..now
+    when 'last_90d'
+      90.days.ago..now
+    when 'last_year'
+      1.year.ago..now
+    when 'this_month'
+      now.beginning_of_month..now
+    when 'this_year'
+      now.beginning_of_year..now
+    end
   end
 
   def apply_sorting
