@@ -11,9 +11,10 @@ module EvoFlow
     end
   end
 
-  # Raised at construction time for an unusable configuration (missing key, or
-  # cleartext transport in production). Fails fast instead of emitting a
-  # request that is guaranteed to 401 or that leaks the shared key in cleartext.
+  # Raised at construction time for an unusable configuration (missing key,
+  # invalid scheme, or cleartext transport in production). Fails fast instead
+  # of emitting a request that is guaranteed to 401 or that leaks the shared
+  # key over cleartext.
   class ConfigurationError < StandardError; end
 
   # Instance-based (DI-friendly) authenticated HTTP client for evo-flow.
@@ -23,8 +24,11 @@ module EvoFlow
     include HTTParty
 
     DEFAULT_API_URL = 'http://evo-flow:3000/api/v1'.freeze
-    REDACTED_BODY = '[redacted: auth failure]'.freeze
+    REDACTED_4XX = '[redacted: 4xx body]'.freeze
     MAX_LOGGED_BODY = 500
+    VALID_SCHEMES = %w[http https].freeze
+    # Accepted truthy values for EVO_FLOW_ALLOW_INSECURE (case-insensitive).
+    INSECURE_TRUTHY = %w[true 1 yes on].freeze
 
     def initialize(api_url: ENV.fetch('EVO_FLOW_API_URL', DEFAULT_API_URL),
                    api_key: ENV.fetch('AUTH_APIKEY_INTEGRATION_LOCAL', nil),
@@ -41,7 +45,10 @@ module EvoFlow
                                  headers: request_headers,
                                  timeout: @timeout)
       handle_response(response)
-    rescue HTTParty::Error, SocketError, Timeout::Error, SystemCallError => e
+    # Net::OpenTimeout/Net::ReadTimeout already inherit from Timeout::Error.
+    # OpenSSL::SSL::SSLError is its own hierarchy and must be listed explicitly.
+    rescue HTTParty::Error, SocketError, Timeout::Error, SystemCallError,
+           OpenSSL::SSL::SSLError => e
       raise EvoFlow::HTTPError.new("evo-flow request failed: #{e.message}", nil, nil)
     end
 
@@ -49,13 +56,24 @@ module EvoFlow
 
     def validate_config!
       raise ConfigurationError, 'AUTH_APIKEY_INTEGRATION_LOCAL is not set' if @api_key.to_s.strip.empty?
-      return if URI(@api_url).scheme == 'https'
+
+      scheme = URI(@api_url).scheme
+      unless VALID_SCHEMES.include?(scheme)
+        raise ConfigurationError,
+              "EVO_FLOW_API_URL has invalid or missing scheme (#{scheme.inspect}); " \
+              "expected one of #{VALID_SCHEMES.inspect}"
+      end
+      return if scheme == 'https'
       return unless Rails.env.production?
-      return if ENV.fetch('EVO_FLOW_ALLOW_INSECURE', nil) == 'true'
+      return if insecure_allowed?
 
       raise ConfigurationError,
             "refusing to send the API key over cleartext (#{@api_url}); use https " \
-            'or set EVO_FLOW_ALLOW_INSECURE=true only on a trusted private network'
+            'or set EVO_FLOW_ALLOW_INSECURE=<true|1|yes|on> only on a trusted private network'
+    end
+
+    def insecure_allowed?
+      INSECURE_TRUTHY.include?(ENV.fetch('EVO_FLOW_ALLOW_INSECURE', '').to_s.downcase)
     end
 
     # URI.join drops the /api/v1 prefix when path starts with '/' (a leading
@@ -85,15 +103,14 @@ module EvoFlow
     def raise_api_error(response)
       msg = "evo-flow API error: #{response.code} - #{safe_body(response)}"
       Rails.logger.error(msg)
-      # error.response still carries the full HTTParty response for programmatic
-      # use; only the logged/message form is redacted/bounded.
       raise EvoFlow::HTTPError.new(msg, response.code, response)
     end
 
-    # Auth-rejection bodies frequently echo the offending key/context, so they
-    # are never logged. Other bodies are length-bounded to keep logs sane.
+    # 4xx bodies frequently reflect client input (auth tokens on 401/403,
+    # validation echoes on 400/422, etc.), so the whole 4xx class is redacted.
+    # 5xx bodies are length-bounded; other classes pass through.
     def safe_body(response)
-      return REDACTED_BODY if [401, 403].include?(response.code)
+      return REDACTED_4XX if (400..499).cover?(response.code)
 
       body = response.body.to_s
       body.length > MAX_LOGGED_BODY ? "#{body[0, MAX_LOGGED_BODY]}... (truncated)" : body

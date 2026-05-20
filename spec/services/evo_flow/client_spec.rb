@@ -81,17 +81,28 @@ RSpec.describe EvoFlow::Client do
         }
     end
 
-    it 'never logs an auth-rejection body (may echo the key) (F3)' do
-      stub_request(:post, track_url).to_return(status: 401, body: 'token=xyz leaked')
+    it 'redacts any 4xx body (auth + validation echoes) (L2)' do
       logged = []
       allow(Rails.logger).to receive(:error) { |m| logged << m }
 
-      expect { client.post('/events/track', payload) }.to raise_error(EvoFlow::HTTPError) { |error|
-        expect(error.message).to include('[redacted: auth failure]')
-        expect(error.message).not_to include('xyz leaked')
-      }
-      expect(logged.join).to include('[redacted: auth failure]')
-      expect(logged.join).not_to include('xyz leaked')
+      [400, 401, 403, 422, 429].each do |code|
+        stub_request(:post, track_url).to_return(status: code, body: "echo-input-#{code} secret=xyz")
+        expect { client.post('/events/track', payload) }.to raise_error(EvoFlow::HTTPError) { |error|
+          expect(error.message).to include('[redacted: 4xx body]')
+          expect(error.message).not_to include('echo-input')
+        }
+      end
+      expect(logged.join).not_to include('echo-input')
+    end
+
+    it 'wraps OpenSSL::SSL::SSLError as HTTPError with nil code (L4)' do
+      stub_request(:post, track_url).to_raise(OpenSSL::SSL::SSLError.new('handshake failed'))
+
+      expect { client.post('/events/track', payload) }
+        .to raise_error(EvoFlow::HTTPError) { |error|
+          expect(error.code).to be_nil
+          expect(error.message).to include('evo-flow request failed')
+        }
     end
   end
 
@@ -101,6 +112,15 @@ RSpec.describe EvoFlow::Client do
         .to raise_error(EvoFlow::ConfigurationError, /not set/)
       expect { described_class.new(api_url: api_url, api_key: nil) }
         .to raise_error(EvoFlow::ConfigurationError)
+    end
+
+    it 'rejects an invalid/missing scheme in any environment (M2)' do
+      # Reproduces the EVO_FLOW_API_URL=evo-flow:3000 typo: URI parses 'evo-flow'
+      # as the scheme. Must fail fast even in development/test.
+      expect { described_class.new(api_url: 'evo-flow:3000/api/v1', api_key: 'k') }
+        .to raise_error(EvoFlow::ConfigurationError, /invalid or missing scheme/)
+      expect { described_class.new(api_url: 'ftp://evo-flow/api/v1', api_key: 'k') }
+        .to raise_error(EvoFlow::ConfigurationError, /invalid or missing scheme/)
     end
 
     context 'when in production' do
@@ -116,11 +136,24 @@ RSpec.describe EvoFlow::Client do
           .not_to raise_error
       end
 
-      it 'allows http only with the explicit insecure opt-out' do
+      it 'accepts EVO_FLOW_ALLOW_INSECURE in any of true/1/yes/on (case-insensitive) (L1)' do
         allow(ENV).to receive(:fetch).and_call_original
-        allow(ENV).to receive(:fetch).with('EVO_FLOW_ALLOW_INSECURE', nil).and_return('true')
-        expect { described_class.new(api_url: 'http://evo-flow:3000/api/v1', api_key: 'k') }
-          .not_to raise_error
+
+        %w[true TRUE True 1 yes YES on On].each do |val|
+          allow(ENV).to receive(:fetch).with('EVO_FLOW_ALLOW_INSECURE', '').and_return(val)
+          expect { described_class.new(api_url: 'http://evo-flow:3000/api/v1', api_key: 'k') }
+            .not_to raise_error
+        end
+      end
+
+      it 'rejects non-truthy values for EVO_FLOW_ALLOW_INSECURE' do
+        allow(ENV).to receive(:fetch).and_call_original
+
+        ['', 'maybe', '0', 'false'].each do |val|
+          allow(ENV).to receive(:fetch).with('EVO_FLOW_ALLOW_INSECURE', '').and_return(val)
+          expect { described_class.new(api_url: 'http://evo-flow:3000/api/v1', api_key: 'k') }
+            .to raise_error(EvoFlow::ConfigurationError, /cleartext/)
+        end
       end
     end
   end

@@ -95,9 +95,13 @@ RSpec.describe EvoFlow::PayloadBuilder do
       expect { described_class.iso8601('not-a-timestamp') }.to raise_error(ArgumentError)
     end
 
-    it 'formats Time as UTC and falls back to Time.current when nil' do
+    it 'formats Time as UTC' do
       expect(described_class.iso8601(occurred_at)).to eq(occurred_at.utc.iso8601)
-      expect { Time.iso8601(described_class.iso8601(nil)) }.not_to raise_error
+    end
+
+    it 'raises ArgumentError on nil — no implicit Time.current fallback (L3)' do
+      expect { described_class.iso8601(nil) }
+        .to raise_error(ArgumentError, /occurred_at is required/)
     end
   end
 end

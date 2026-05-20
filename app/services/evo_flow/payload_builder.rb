@@ -34,11 +34,14 @@ module EvoFlow
 
     # Always emits UTC ISO-8601. A String is validated by re-parsing (fail
     # fast with ArgumentError rather than shipping an unparseable timestamp
-    # that evo-flow would silently misread/reject downstream).
+    # that evo-flow would silently misread/reject downstream). nil is also
+    # rejected — the caller must be explicit about the event timestamp so a
+    # missing occurred_at never silently becomes "now".
     def self.iso8601(time)
+      raise ArgumentError, 'occurred_at is required (no implicit Time.current fallback)' if time.nil?
       return Time.iso8601(time).utc.iso8601 if time.is_a?(String)
 
-      (time || Time.current).utc.iso8601
+      time.utc.iso8601
     end
   end
 end
