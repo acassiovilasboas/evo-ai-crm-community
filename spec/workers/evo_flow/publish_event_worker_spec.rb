@@ -81,5 +81,54 @@ RSpec.describe EvoFlow::PublishEventWorker, type: :job do
       expect(listener.received[:data][:payload]['properties']).to eq('[redacted]')
       expect(listener.received[:data][:payload]['messageId']).to eq('m-1')
     end
+
+    it 'redacts long secret-like tokens out of ex.message before broadcast/log (M1)' do
+      job = { 'args' => [path, payload], 'class' => described_class.name }
+      leaked_token = 'a' * 40
+      exception = ArgumentError.new("upstream said token=#{leaked_token} go away")
+      logged = []
+      allow(Rails.logger).to receive(:error) { |m| logged << m }
+
+      Wisper.subscribe(listener) do
+        described_class.sidekiq_retries_exhausted_block.call(job, exception)
+      end
+
+      expect(listener.received[:data][:error]).not_to include(leaked_token)
+      expect(listener.received[:data][:error]).to include('[redacted]')
+      expect(logged.join).not_to include(leaked_token)
+    end
+  end
+
+  describe '.sanitize_error (M1)' do
+    it 'redacts likely secrets (>=32 hex/base64) and is length-bounded' do
+      ex = StandardError.new("hex=#{'f' * 64} long body: #{'x' * 600}")
+      out = described_class.sanitize_error(ex)
+      expect(out).to include('[redacted]')
+      expect(out).not_to include('f' * 64)
+      expect(out.length).to be <= 530 # 500 + '... (truncated)' suffix
+    end
+
+    it 'is idempotent (calling twice yields the same string)' do
+      ex = StandardError.new("token=#{'a' * 50}")
+      first = described_class.sanitize_error(ex)
+      expect(described_class.sanitize_error(ex)).to eq(first)
+    end
+
+    it 'leaves short, token-free messages untouched' do
+      expect(described_class.sanitize_error(StandardError.new('boom'))).to eq('boom')
+    end
+  end
+
+  describe 'happy-path log when messageId is absent (L6)' do
+    it 'logs messageId=<missing> instead of an empty value' do
+      allow(client).to receive(:post).and_return({})
+      logged = []
+      allow(Rails.logger).to receive(:info) { |m| logged << m }
+
+      described_class.new.perform(path, {}) # payload with no messageId
+      described_class.new.perform(path, nil) # not even a hash
+
+      expect(logged).to all(include('messageId=<missing>'))
+    end
   end
 end

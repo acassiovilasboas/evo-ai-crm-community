@@ -19,6 +19,11 @@ module EvoFlow
     # before being persisted as Sidekiq job args / Dead Set / Wisper payload;
     # only identifiers needed for triage and replay decisions are kept.
     PII_KEYS = %w[properties traits].freeze
+    MAX_ERROR_MESSAGE = 500
+    # Heuristic redaction for likely secrets/tokens embedded in error messages
+    # (>=32 hex/base64 chars). Conservative: catches API keys, JWTs, SHA256
+    # hex digests, etc., without touching short human-readable text.
+    LIKELY_SECRET = %r{[A-Za-z0-9+/_=-]{32,}}
 
     # Wisper 2.0.0 exposes NO `Wisper.publish`; global listeners registered via
     # `Wisper.subscribe` (config/initializers/contact_company_listeners.rb) are
@@ -40,12 +45,22 @@ module EvoFlow
       end
     end
 
+    # For EvoFlow::HTTPError the message is already passed through Client#safe_body;
+    # for JSON::ParserError / ArgumentError / TLS errors it may still echo a
+    # response snippet. Bound length and redact long token-looking substrings.
+    # Idempotent.
+    def self.sanitize_error(error)
+      msg = error.message.to_s.gsub(LIKELY_SECRET, '[redacted]')
+      msg.length > MAX_ERROR_MESSAGE ? "#{msg[0, MAX_ERROR_MESSAGE]}... (truncated)" : msg
+    end
+
     sidekiq_retries_exhausted do |job, ex|
       args = job['args'] || []
       path = args[0]
       safe_payload = EvoFlow::PublishEventWorker.sanitize_payload(args[1])
-      Rails.logger.error("[EvoFlow] terminal failure path=#{path} msg=#{ex.message}")
-      FailureBroadcaster.new.broadcast_failed(path: path, payload: safe_payload, error: ex.message)
+      safe_error = EvoFlow::PublishEventWorker.sanitize_error(ex)
+      Rails.logger.error("[EvoFlow] terminal failure path=#{path} msg=#{safe_error}")
+      FailureBroadcaster.new.broadcast_failed(path: path, payload: safe_payload, error: safe_error)
     end
 
     def perform(path, payload)
@@ -59,7 +74,9 @@ module EvoFlow
     rescue StandardError => e
       # Any other failure (unparseable body, bad args, config error) must also
       # count as a Sidekiq retry and reach the exhaustion path uniformly.
-      Rails.logger.warn("[EvoFlow] publish errored (will retry) path=#{path} msg=#{e.message}")
+      Rails.logger.warn(
+        "[EvoFlow] publish errored (will retry) path=#{path} msg=#{self.class.sanitize_error(e)}"
+      )
       raise
     end
 
@@ -67,10 +84,11 @@ module EvoFlow
 
     # Sidekiq JSON-serialises args → string keys for enqueued jobs; tolerate
     # symbol keys too (in-process / console invocation with builder output).
+    # Returns '<missing>' (not '') when absent, so logs are greppable.
     def message_id(payload)
-      return unless payload.is_a?(Hash)
+      return '<missing>' unless payload.is_a?(Hash)
 
-      payload['messageId'] || payload[:messageId]
+      payload['messageId'] || payload[:messageId] || '<missing>'
     end
   end
 end
