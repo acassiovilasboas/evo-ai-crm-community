@@ -132,9 +132,14 @@ module EvolutionHub
 
     def persist_hub_metadata(channel, hub_response)
       channel_body = hub_response.is_a?(Hash) ? (hub_response['channel'] || {}) : {}
+      # Capture webhook_id so EvolutionHubChannelCleanup can cascade-delete the
+      # webhook when the local Inbox is destroyed. Without this, deleting the
+      # inbox leaves an orphan webhook row in the Hub.
+      webhook_id = hub_response.is_a?(Hash) ? hub_response['webhook_id'] : nil
       hub_block = {
         'channel_id'    => channel_body['id'],
         'channel_token' => channel_body['token'],
+        'webhook_id'    => webhook_id,
         'public_link'   => build_public_link(channel_body['token']),
         'status'        => 'pending'
       }

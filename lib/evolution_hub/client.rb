@@ -49,6 +49,15 @@ module EvolutionHub
       delete_json("/api/v1/channels/#{channel_id}")
     end
 
+    # DELETE /api/v1/webhooks/:id — used alongside delete_channel to remove
+    # the paired Hub webhook the CRM created via single-shot CreateWithWebhook.
+    # The Hub doesn't cascade webhook deletion when a channel is removed
+    # (intentional: webhooks may be shared across channels), so the cleanup
+    # has to happen here on the side that owns the lifecycle.
+    def delete_webhook(webhook_id)
+      delete_json("/api/v1/webhooks/#{webhook_id}")
+    end
+
     private
 
     def base_url
