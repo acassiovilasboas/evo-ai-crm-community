@@ -6,6 +6,7 @@ module EvoFlow
   class PayloadBuilder
     # Exactly 5 kwargs (RuboCop ParameterLists max 5 — do not add a 6th).
     def self.build_track(event_name:, contact_id:, properties:, occurred_at:, message_id:)
+      validate_event_name!(event_name)
       {
         messageId: message_id,
         contactId: contact_id.to_s,
@@ -16,6 +17,7 @@ module EvoFlow
     end
 
     def self.build_identify(event_name:, contact_id:, traits:, occurred_at:, message_id:)
+      validate_event_name!(event_name)
       {
         messageId: message_id,
         contactId: contact_id.to_s,
@@ -23,6 +25,15 @@ module EvoFlow
         traits: traits || {},
         timestamp: iso8601(occurred_at)
       }
+    end
+
+    # AC6: raise on event_name outside EvoFlow::EVENT_NAMES (caught in CI, not prod —
+    # listeners rescue StandardError and tag enqueue-loss). Prevents typo'd or
+    # legacy event names from silently shipping to evo-flow / ClickHouse.
+    def self.validate_event_name!(event_name)
+      return if EvoFlow::EVENT_NAMES.include?(event_name)
+
+      raise EvoFlow::InvalidEventName, event_name
     end
 
     # Deterministic, forward-looking idempotency key. NOTE: evo-flow has no
