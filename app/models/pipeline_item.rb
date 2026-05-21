@@ -54,7 +54,10 @@ class PipelineItem < ApplicationRecord
 
   before_save :normalize_services_data!
   after_create :create_entry_movement
-  after_create :publish_pipeline_item_created
+  # `_commit` so the Wisper publish + dispatcher dispatch (and the Sidekiq job
+  # they enqueue) only fire after the transaction commits — avoids orphan jobs
+  # on rollback.
+  after_create_commit :publish_pipeline_item_created
   after_create :dispatch_initial_stage_event
   after_update :create_stage_change_movement, if: :saved_change_to_pipeline_stage_id?
   after_update :publish_pipeline_item_updated

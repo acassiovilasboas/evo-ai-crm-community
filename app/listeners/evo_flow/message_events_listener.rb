@@ -137,19 +137,33 @@ module EvoFlow
       EvoFlow::PublishEventWorker.perform_async(TRACK_PATH, JSON.parse(payload.to_json))
     end
 
-    # Raw content is intentionally passed through; EvoFlow::PublishEventWorker
-    # redacts `properties` only when persisting Sidekiq args / failure
-    # broadcasts, not in-flight to evo-flow which needs the content.
+    # PII/volume guard: `content` is truncated (default 2000 chars) and can be
+    # disabled entirely via `EVO_FLOW_MESSAGE_CONTENT_DISABLED=true`. The worker
+    # already redacts `properties` for Sidekiq args/failure broadcasts; this is
+    # an additional pre-enqueue cap to bound payload size and reduce PII exposure
+    # in-flight to evo-flow.
+    DEFAULT_CONTENT_MAX_LENGTH = 2000
+
     def build_created_properties(message, inbox)
       {
         message_id: message.id,
         conversation_id: message.conversation_id,
         message_type: message.message_type,
         content_type: message.content_type,
-        content: message.content,
+        content: sanitized_content(message.content),
         channel_type: inbox.channel_type,
         source: 'messaging'
-      }
+      }.compact
+    end
+
+    def sanitized_content(content)
+      return nil if content.nil?
+      return nil if ENV['EVO_FLOW_MESSAGE_CONTENT_DISABLED'].to_s.downcase == 'true'
+
+      max = (ENV['EVO_FLOW_MESSAGE_CONTENT_MAX_LENGTH'].presence || DEFAULT_CONTENT_MAX_LENGTH).to_i
+      max = DEFAULT_CONTENT_MAX_LENGTH if max <= 0
+
+      content.length > max ? "#{content[0, max]}…[truncated]" : content
     end
 
     def build_status_properties(message, inbox, event_data)

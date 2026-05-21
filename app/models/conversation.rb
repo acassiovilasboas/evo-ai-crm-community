@@ -122,6 +122,7 @@ class Conversation < ApplicationRecord
   after_create_commit :publish_conversation_created
   after_create_commit :assign_to_default_pipeline
   after_update_commit :publish_conversation_updated
+  after_update_commit :publish_conversation_resolved
   after_destroy_commit :publish_conversation_deleted
   after_destroy_commit :sync_session_delete
 
@@ -372,6 +373,21 @@ class Conversation < ApplicationRecord
 
   def publish_conversation_deleted
     publish(:conversation_deleted, data: { conversation: self, api_access_token: Current.api_access_token })
+  end
+
+  # Wisper-direct producer for resolved. The Dispatcher path (notify_status_change →
+  # CONVERSATION_RESOLVED) already feeds the dispatcher-subscribed listeners; this
+  # exists so global Wisper subscribers (EvoFlow) receive a single hash-shaped event
+  # and can reject the duplicate Events::Base envelopes published by Sync/Async
+  # dispatchers via `return if data.respond_to?(:data)`.
+  def publish_conversation_resolved
+    return unless saved_change_to_status? && resolved?
+
+    publish(:conversation_resolved, data: {
+      conversation: self,
+      performed_by: Current.executed_by,
+      api_access_token: Current.api_access_token
+    })
   end
 
   def sync_session_delete

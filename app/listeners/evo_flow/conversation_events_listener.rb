@@ -4,15 +4,11 @@ module EvoFlow
   # Subscribes to Wisper :conversation_created and :conversation_resolved
   # and forwards them to evo-flow as track events.
   #
-  # Dual-shape note:
-  # - `:conversation_created` is published *twice* by the Conversation model
-  #   (Wisper direct via `publish(:conversation_created, data: {...})` and
-  #    Dispatcher via `Rails.configuration.dispatcher.dispatch(...)`). The
-  #   `return if data.respond_to?(:data)` guard de-dupes by rejecting the
-  #   Dispatcher envelope (Events::Base has `.data`).
-  # - `:conversation_resolved` is published *only* via Dispatcher (see
-  #   `Conversation#notify_status_change`). The handler accepts the
-  #   `Events::Base` shape and reads from `event.data`.
+  # Dual-shape note: both events follow the same convention. The Conversation
+  # model publishes a Wisper-direct hash AND the Dispatcher fires Sync + Async,
+  # each calling `publish` and reaching global Wisper subscribers. The
+  # `return if data.respond_to?(:data)` guard rejects the two Events::Base
+  # envelopes so the handler processes once per logical event.
   #
   # `evo_flow_enabled?` is duplicated across the 4 EvoFlow listeners by
   # design (tech-spec §Technical Decisions #2: no shared base class).
@@ -35,12 +31,10 @@ module EvoFlow
       log_failure(__method__, e)
     end
 
-    # AC2: receives Events::Base from SyncDispatcher (Conversation#notify_status_change
-    # is the only producer). No Wisper-direct shape exists for this event.
-    def conversation_resolved(event)
-      return unless event.respond_to?(:data)
+    def conversation_resolved(data)
+      return if data.respond_to?(:data)
 
-      event_data = event.data
+      event_data = data[:data] || data
       conversation = event_data[:conversation]
       unless conversation
         Rails.logger.error('EvoFlow::ConversationEventsListener#conversation_resolved: conversation is nil')

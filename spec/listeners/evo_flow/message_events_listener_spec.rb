@@ -58,6 +58,42 @@ RSpec.describe EvoFlow::MessageEventsListener do
       )
     end
 
+    context 'when content exceeds the truncation limit' do
+      let(:long_content) { 'x' * 2500 }
+      let(:message) do
+        instance_double(
+          Message, id: 555, conversation_id: 100, conversation: conversation,
+                   message_type: 'incoming', content_type: 'text', content: long_content,
+                   created_at: created_at, updated_at: created_at
+        )
+      end
+
+      it 'truncates content at 2000 chars with a truncated marker' do
+        listener.message_created(data: payload)
+        sent = EvoFlow::PublishEventWorker.jobs.last['args'][1]
+        expect(sent['properties']['content']).to end_with('…[truncated]')
+        expect(sent['properties']['content'].length).to be > 2000
+        expect(sent['properties']['content'].length).to be < long_content.length
+      end
+
+      it 'honours EVO_FLOW_MESSAGE_CONTENT_MAX_LENGTH override' do
+        allow(ENV).to receive(:[]).with('EVO_FLOW_MESSAGE_CONTENT_MAX_LENGTH').and_return('50')
+        listener.message_created(data: payload)
+        sent = EvoFlow::PublishEventWorker.jobs.last['args'][1]
+        expect(sent['properties']['content']).to eq("#{'x' * 50}…[truncated]")
+      end
+    end
+
+    context 'when EVO_FLOW_MESSAGE_CONTENT_DISABLED is true' do
+      before { allow(ENV).to receive(:[]).with('EVO_FLOW_MESSAGE_CONTENT_DISABLED').and_return('true') }
+
+      it 'omits content from the payload' do
+        listener.message_created(data: payload)
+        sent = EvoFlow::PublishEventWorker.jobs.last['args'][1]
+        expect(sent['properties']).not_to have_key('content')
+      end
+    end
+
     context 'when inbox is missing (AC8)' do
       let(:conversation) { instance_double(Conversation, contact_id: 42, inbox: nil) }
 

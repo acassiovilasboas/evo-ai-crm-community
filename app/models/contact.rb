@@ -84,7 +84,7 @@ class Contact < ApplicationRecord
   # after_create_commit :dispatch_create_event # Disabled - using Wisper events instead
   after_create_commit :ip_lookup, :publish_contact_created, :assign_to_default_pipeline
   # after_update_commit :dispatch_update_event # Disabled - using Wisper events instead
-  after_update_commit :publish_contact_updated, :publish_custom_attribute_changes
+  after_update_commit :publish_contact_updated, :publish_custom_attribute_changes, :publish_label_changes
   before_save :sync_contact_attributes
   before_destroy :ensure_pipeline_items_cleanup, :publish_contact_deleted
   after_destroy_commit :dispatch_destroy_event
@@ -351,6 +351,21 @@ class Contact < ApplicationRecord
     return 'removed' if new_value.nil?
 
     'updated'
+  end
+
+  # F-2: diff `label_list` on update and emit one Wisper event per added/removed
+  # label so EvoFlow listeners observe label changes from ALL write paths —
+  # `update(label_list: ...)`, `label_list.add/remove + save!`, and
+  # `Labelable#update_labels/#add_labels` (which all funnel through update_commit).
+  def publish_label_changes
+    return unless saved_change_to_label_list?
+
+    before, after = previous_changes[:label_list] || saved_change_to_label_list
+    before = Array(before)
+    after = Array(after)
+
+    (after - before).each { |label_name| publish_label_added(label_name) }
+    (before - after).each { |label_name| publish_label_removed(label_name) }
   end
 
   # Publish label changes
