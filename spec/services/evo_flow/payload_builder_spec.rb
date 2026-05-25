@@ -4,9 +4,12 @@ RSpec.describe EvoFlow::PayloadBuilder do
   let(:occurred_at) { Time.zone.parse('2026-05-19T12:00:00Z') }
 
   describe '.build_track (real TrackEventDto)' do
+    # Use the 'custom' sentinel for DTO-shape tests so they stay decoupled from
+    # any specific event's schema (EVO-1261 SchemaValidator runs on canonical
+    # names; custom is the documented free-form fallback).
     subject(:payload) do
       described_class.build_track(
-        event_name: 'contact.created',
+        event_name: 'custom',
         contact_id: 42,
         properties: { a: 1 },
         occurred_at: occurred_at,
@@ -18,7 +21,7 @@ RSpec.describe EvoFlow::PayloadBuilder do
       expect(payload).to eq(
         messageId: 'sha',
         contactId: '42',
-        event: 'contact.created',
+        event: 'custom',
         properties: { a: 1 },
         timestamp: occurred_at.utc.iso8601
       )
@@ -32,7 +35,7 @@ RSpec.describe EvoFlow::PayloadBuilder do
 
     it 'stringifies contactId and defaults nil properties to {}' do
       built = described_class.build_track(
-        event_name: 'contact.created', contact_id: 7,
+        event_name: 'custom', contact_id: 7,
         properties: nil, occurred_at: occurred_at, message_id: 'x'
       )
       expect(built[:contactId]).to eq('7')
@@ -58,12 +61,25 @@ RSpec.describe EvoFlow::PayloadBuilder do
         end.to raise_error(EvoFlow::InvalidEventName, /Unknown EvoFlow event_name: nil/)
       end
     end
+
+    # EVO-1261: SchemaValidator runs after validate_event_name!.
+    it 'raises EvoFlow::InvalidEventPayload when required schema fields are missing' do
+      expect do
+        described_class.build_track(
+          event_name: 'message.delivered',
+          contact_id: 1,
+          properties: { channel_type: 'Channel::Whatsapp', conversation_id: 'c1', source: 'm' },
+          occurred_at: occurred_at,
+          message_id: 'x'
+        )
+      end.to raise_error(EvoFlow::InvalidEventPayload, /message_id/)
+    end
   end
 
   describe '.build_identify (real IdentifyEventDto)' do
     subject(:payload) do
       described_class.build_identify(
-        event_name: 'contact.updated',
+        event_name: 'custom',
         contact_id: 42,
         traits: { email: 'x' },
         occurred_at: occurred_at,
@@ -75,7 +91,7 @@ RSpec.describe EvoFlow::PayloadBuilder do
       expect(payload).to eq(
         messageId: 'sha',
         contactId: '42',
-        eventName: 'contact.updated',
+        eventName: 'custom',
         traits: { email: 'x' },
         timestamp: occurred_at.utc.iso8601
       )
@@ -96,6 +112,19 @@ RSpec.describe EvoFlow::PayloadBuilder do
           )
         end.to raise_error(EvoFlow::InvalidEventName, /Unknown EvoFlow event_name: "tambem_nao"/)
       end
+    end
+
+    # EVO-1261: SchemaValidator runs after validate_event_name!.
+    it 'raises EvoFlow::InvalidEventPayload when traits miss a required field' do
+      expect do
+        described_class.build_identify(
+          event_name: 'contact.created',
+          contact_id: 1,
+          traits: { source: 'contact_created' },
+          occurred_at: occurred_at,
+          message_id: 'x'
+        )
+      end.to raise_error(EvoFlow::InvalidEventPayload, /id/)
     end
   end
 
@@ -140,11 +169,26 @@ RSpec.describe EvoFlow::PayloadBuilder do
   # builder raises EvoFlow::InvalidEventName. Caught in CI, not prod —
   # listeners rescue StandardError and tag enqueue-loss.
   describe 'event_name validation (AC6)' do
+    # Kitchen-sink payload covers required fields of every canonical event in
+    # EVENT_NAMES so the loop exercises name validation without tripping the
+    # EVO-1261 SchemaValidator. allow_extra_properties=true everywhere accepts
+    # the unused keys per event.
+    let(:kitchen_sink_properties) do
+      {
+        id: 'c-1', source: 'source', deleted_at: occurred_at,
+        labelName: 'lbl', labelId: 'lbl-1', attributeName: 'attr',
+        conversation_id: 'conv-1', inbox_id: 7,
+        message_id: 'msg-1', channel_type: 'Channel::Whatsapp', message_type: 'incoming',
+        pipeline_item_id: 'pi-1', pipeline_id: 'p-1',
+        campaign_id: 'cmp-1'
+      }
+    end
+
     it 'accepts canonical event_names from EvoFlow::EVENT_NAMES' do
       EvoFlow::EVENT_NAMES.each do |name|
         expect do
           described_class.build_track(
-            event_name: name, contact_id: 1, properties: {},
+            event_name: name, contact_id: 1, properties: kitchen_sink_properties,
             occurred_at: occurred_at, message_id: 'x'
           )
         end.not_to raise_error
