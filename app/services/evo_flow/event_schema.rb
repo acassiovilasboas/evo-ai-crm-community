@@ -1,8 +1,8 @@
 module EvoFlow
-  # Ruby mirror of evo-flow/src/modules/events/manifest/event-catalog.ts.
-  # Locked in lockstep by scripts/check-event-manifest-sync.sh (CI gate).
-  # When adding/changing an event schema, edit BOTH this file and the TS
-  # catalog — the CI script fails the build on drift.
+  # Ruby mirror of evo-flow/src/modules/events/manifest/event-catalog.ts
+  # and evo-ai-frontend-community/src/lib/events-manifest/catalog.ts.
+  # The three mirrors are kept in sync by convention; an automated CI sync
+  # gate is tracked as a follow-up (no enforcement at the moment).
   #
   # Categories: contact | conversation | message | campaign | custom.
   # FieldType (TS): string | number | boolean | date | uuid | object
@@ -73,12 +73,12 @@ module EvoFlow
     },
     'conversation.created' => {
       category: :conversation,
-      required: { conversation_id: :uuid, inbox_id: :number, source: :string },
+      required: { conversation_id: :uuid, inbox_id: :uuid, source: :string },
       optional: { inbox_name: :string, channel_type: :string }
     },
     'conversation.resolved' => {
       category: :conversation,
-      required: { conversation_id: :uuid, inbox_id: :number, source: :string },
+      required: { conversation_id: :uuid, inbox_id: :uuid, source: :string },
       optional: {
         inbox_name: :string, channel_type: :string,
         resolved_by_id: :string, resolved_by_type: :string, resolution_time_seconds: :number
@@ -128,7 +128,7 @@ module EvoFlow
       optional: {
         conversation_id: :uuid, contact_id: :uuid, is_lead: :boolean,
         pipeline_name: :string, pipeline_stage_id: :uuid, pipeline_stage_name: :string,
-        assigned_by_id: :number, custom_fields: :object
+        assigned_by_id: :uuid, custom_fields: :object
       }
     },
     'campaign.message.sent' => {

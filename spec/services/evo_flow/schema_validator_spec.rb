@@ -226,7 +226,7 @@ RSpec.describe EvoFlow::SchemaValidator do
         end.to raise_error(EvoFlow::InvalidEventPayload)
       end
 
-      it 'rejects a string where number is expected' do
+      it 'rejects an arbitrary string where uuid is expected' do
         expect do
           described_class.validate!(
             'conversation.created',
@@ -243,7 +243,9 @@ RSpec.describe EvoFlow::SchemaValidator do
         expect do
           described_class.validate!(
             'conversation.created',
-            conversation_id: '550e8400-e29b-41d4-a716-446655440001', inbox_id: 7, source: 'conversation_management'
+            conversation_id: '550e8400-e29b-41d4-a716-446655440001',
+            inbox_id: '550e8400-e29b-41d4-a716-446655440002',
+            source: 'conversation_management'
           )
         end.not_to raise_error
       end
@@ -252,7 +254,9 @@ RSpec.describe EvoFlow::SchemaValidator do
         expect do
           described_class.validate!(
             'conversation.created',
-            conversation_id: '550e8400-e29b-41d4-a716-446655440001', inbox_id: 7, source: 'conversation_management',
+            conversation_id: '550e8400-e29b-41d4-a716-446655440001',
+            inbox_id: '550e8400-e29b-41d4-a716-446655440002',
+            source: 'conversation_management',
             channel_type: 12345
           )
         end.to raise_error(EvoFlow::InvalidEventPayload)
