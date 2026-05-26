@@ -203,6 +203,38 @@ RSpec.describe 'GET /api/v1/contacts/:contact_id/events', type: :request do
     end
   end
 
+  describe 'enrich payload hygiene' do
+    it "omits the 'enriched' key entirely when the event has no enrichable property" do
+      stub_request(:get, events_url)
+        .to_return(
+          status: 200,
+          body: { events: [{ id: 'e1', properties: { 'foo' => 'bar' } }] }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        )
+
+      get "/api/v1/contacts/#{contact_id}/events", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(json_response.dig('events', 0)).not_to have_key('enriched')
+    end
+
+    it 'omits nil enrich values instead of returning enriched.campaign_name = nil' do
+      missing_id = SecureRandom.uuid
+      stub_request(:get, events_url)
+        .to_return(
+          status: 200,
+          body: { events: [{ properties: { 'campaign_id' => missing_id, 'channel' => 'whatsapp' } }] }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        )
+
+      get "/api/v1/contacts/#{contact_id}/events", headers: headers
+
+      enriched = json_response.dig('events', 0, 'enriched')
+      expect(enriched).to eq('channel_label' => 'WhatsApp')
+      expect(enriched).not_to have_key('campaign_name')
+    end
+  end
+
   describe 'AC10 — network failure degrades to events:[]' do
     it 'degrades on timeout (EvoFlow::HTTPError with code=nil) and emits a controller-level warn' do
       stub_request(:get, events_url).to_timeout

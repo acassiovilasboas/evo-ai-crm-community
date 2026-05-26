@@ -1,6 +1,7 @@
 class Api::V1::EvoFlow::ContactEventsController < Api::V1::BaseController
-  EVO_FLOW_QUERY_KEYS = %i[event_type event_name channel campaign_id occurred_after occurred_before cursor limit].freeze
-
+  # Single source of truth for outbound filters. The whitelist is derived from
+  # SNAKE_TO_CAMEL.keys below so the two can never drift apart -- adding a key
+  # here automatically adds it to params.permit and to the camelCase output.
   SNAKE_TO_CAMEL = {
     event_type: :eventType,
     event_name: :eventName,
@@ -46,20 +47,24 @@ class Api::V1::EvoFlow::ContactEventsController < Api::V1::BaseController
   end
 
   def translated_filters
-    params.permit(*EVO_FLOW_QUERY_KEYS).to_h.symbolize_keys.each_with_object({}) do |(k, v), acc|
+    params.permit(*SNAKE_TO_CAMEL.keys).to_h.symbolize_keys.each_with_object({}) do |(k, v), acc|
       next if v.blank?
 
-      acc[SNAKE_TO_CAMEL[k]] = v
+      acc[SNAKE_TO_CAMEL.fetch(k)] = v
     end
   end
 
+  # `enriched` is dropped from the event when no property resolves to a value
+  # (campaign/agent not found in Postgres or no enrichable key in properties),
+  # keeping the response payload tight.
   def enrich_event(evt)
     props = evt['properties'] || {}
-    enriched = {}
-    enriched[:campaign_name] = enrich_campaign(props['campaign_id']) if props['campaign_id'].present?
-    enriched[:channel_label] = enrich_channel(props['channel'])      if props['channel'].present?
-    enriched[:agent_name]    = enrich_agent(props['agent_id'])       if props['agent_id'].present?
-    evt.merge('enriched' => enriched)
+    enriched = {
+      campaign_name: (enrich_campaign(props['campaign_id']) if props['campaign_id'].present?),
+      channel_label: (enrich_channel(props['channel']) if props['channel'].present?),
+      agent_name: (enrich_agent(props['agent_id']) if props['agent_id'].present?)
+    }.compact
+    enriched.empty? ? evt : evt.merge('enriched' => enriched)
   end
 
   # skip_nil: prevents poisoning the cache with nil when the upstream id
