@@ -70,6 +70,9 @@ class AutomationRules::ContactActionService
     return if webhook_url.blank?
 
     clean_url = webhook_url.to_s.strip
+    # EVO-1641: the contact webhook string is a LIVE external contract
+    # (integrations filter on `contact_created`/`contact_updated`), so it stays
+    # as-is. Only the dormant flow executor was unified to `automation_event.*`.
     payload = (@contact.webhook_data || {}).merge(event: "contact_#{@rule.event_name.split('_').last}")
     WebhookJob.perform_later(clean_url, payload)
     Rails.logger.info "Automation Rule #{@rule.id}: Sent webhook to #{clean_url} for contact #{@contact.id}"

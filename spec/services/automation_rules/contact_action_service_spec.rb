@@ -35,6 +35,7 @@ RSpec.describe AutomationRules::ContactActionService do
 
       expect(WebhookJob).to have_received(:perform_later).with(
         'https://example.com/hook', # whitespace trimmed
+        # EVO-1641: contact webhook string kept as the live external contract.
         hash_including(event: 'contact_updated')
       )
       expect(recorder).to have_received(:add_step).with('Action: send_webhook_event', hash_including(level: 'success'))
