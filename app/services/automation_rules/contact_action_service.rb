@@ -70,7 +70,8 @@ class AutomationRules::ContactActionService
     return if webhook_url.blank?
 
     clean_url = webhook_url.to_s.strip
-    payload = (@contact.webhook_data || {}).merge(event: "contact_#{@rule.event_name.split('_').last}")
+    # Unified canonical event string across all three executors.
+    payload = (@contact.webhook_data || {}).merge(event: "automation_event.#{@rule.event_name}")
     WebhookJob.perform_later(clean_url, payload)
     Rails.logger.info "Automation Rule #{@rule.id}: Sent webhook to #{clean_url} for contact #{@contact.id}"
   end
