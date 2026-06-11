@@ -28,6 +28,11 @@ module MessageSerializer
              :additional_attributes, :processed_message_content, :sentiment, :sentiment_score]
     )
 
+    # EVO-1551 round 6 — route through Message#content_attributes_for_egress
+    # so the masker is the single source of truth for every server boundary.
+    # Per-request audience: admin tier sees raw via `should_mask?`.
+    result['content_attributes'] = message.content_attributes_for_egress(audience: :per_request)
+
     # Timestamps
     result['created_at'] = message.created_at.to_i
     result['updated_at'] = message.updated_at&.to_i
@@ -35,6 +40,8 @@ module MessageSerializer
     # Include sender (identifies who sent the message: agent, bot, or contact)
     if include_sender
       sender_type = resolve_sender_type(message.sender_type)
+      contact_sender = message.sender_type.to_s.casecmp('contact').zero?
+      mask_contact_sender = contact_sender && ContactPiiMasker.should_mask?
 
       if message.association(:sender).loaded? && message.sender.present?
         sender = message.sender
@@ -42,6 +49,7 @@ module MessageSerializer
                       sender.try(:available_name) ||
                       sender.try(:email) ||
                       ''
+        sender_name = ContactPiiMasker.mask_phone_like_name(sender_name) if mask_contact_sender
         result['sender'] = {
           id: sender.id.to_s,
           name: sender_name,
@@ -56,6 +64,7 @@ module MessageSerializer
                       sender.try(:available_name) ||
                       sender.try(:email) ||
                       ''
+        sender_name = ContactPiiMasker.mask_phone_like_name(sender_name) if mask_contact_sender
         result['sender'] = {
           id: sender.id.to_s,
           name: sender_name,
