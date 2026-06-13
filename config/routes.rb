@@ -256,6 +256,10 @@ Rails.application.routes.draw do
 
       # Product Catalog (EVO-1109)
       resources :products, only: [:index, :create, :show, :update, :destroy], controller: 'products' do
+        # Bulk import endpoint (EVO-1555 S1)
+        collection do
+          post :bulk
+        end
         resources :variants, controller: 'products/variants', only: [:index, :create, :update, :destroy]
       end
 
