@@ -62,12 +62,17 @@ class Api::V1::ProductsController < Api::V1::BaseController
     items = extract_bulk_items
     return if items.nil?
 
-    created = Products::BulkImporter.new(items).call
-    success_response(
-      data: ProductSerializer.serialize_collection(created.map(&:reload)),
-      message: "#{created.size} products created successfully",
-      status: :created
-    )
+    if bulk_dry_run?
+      render_bulk_dry_run(Products::BulkImporter.new(items, dry_run: true).call)
+    else
+      created = Products::BulkImporter.new(items).call
+      success_response(
+        data: ProductSerializer.serialize_collection(created.map(&:reload)),
+        meta: { created: created.size, updated: 0, skipped: 0 },
+        message: "#{created.size} products created successfully",
+        status: :created
+      )
+    end
   rescue Products::BulkImporter::BulkImportError => e
     error_response(
       ApiErrorCodes::VALIDATION_ERROR,
@@ -118,6 +123,28 @@ class Api::V1::ProductsController < Api::V1::BaseController
   def reject_bulk(code, message, details: nil)
     error_response(code, message, details: details, status: :unprocessable_entity)
     nil
+  end
+
+  def bulk_dry_run?
+    ActiveModel::Type::Boolean.new.cast(params[:dry_run])
+  end
+
+  def render_bulk_dry_run(result)
+    success_response(
+      data: {
+        dry_run: true,
+        would_create: result.would_create,
+        would_update: [],
+        would_skip: [],
+        errors: result.errors
+      },
+      meta: {
+        created: result.would_create.size,
+        updated: 0,
+        skipped: 0,
+        errors: result.errors.size
+      }
+    )
   end
 
   def reject_bulk_limit(received)

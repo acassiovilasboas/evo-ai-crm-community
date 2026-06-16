@@ -23,23 +23,40 @@ module Products
       end
     end
 
-    def initialize(items)
+    # EVO-1736 S1.1 — dry-run runs the same transaction, then raises
+    # ActiveRecord::Rollback. Result carries the would-be-created preview
+    # and any per-item errors, so callers always get 200 with a structured
+    # report instead of the 422-on-error semantics of the real path.
+    DryRunResult = Struct.new(:would_create, :errors, keyword_init: true)
+
+    def initialize(items, dry_run: false)
       @items = items
+      @dry_run = dry_run
     end
 
     def call
       pre_errors = pre_validate_items
-      raise BulkImportError, pre_errors if pre_errors.any?
+      if pre_errors.any?
+        return DryRunResult.new(would_create: [], errors: pre_errors) if @dry_run
 
-      created = []
-
-      ActiveRecord::Base.transaction do
-        errors_acc = []
-        @items.each_with_index { |raw_item, index| import_one(raw_item, index, created, errors_acc) }
-        raise BulkImportError, errors_acc if errors_acc.any?
+        raise BulkImportError, pre_errors
       end
 
-      created
+      created = []
+      errors_acc = []
+
+      ActiveRecord::Base.transaction do
+        @items.each_with_index { |raw_item, index| import_one(raw_item, index, created, errors_acc) }
+        if @dry_run
+          raise ActiveRecord::Rollback
+        elsif errors_acc.any?
+          raise BulkImportError, errors_acc
+        end
+      end
+
+      return build_dry_run_result(created, errors_acc) if @dry_run
+
+      created.map { |_index, product, _labels| product }
     end
 
     private
@@ -79,8 +96,8 @@ module Products
         return
       end
 
-      product.update_labels(labels) if labels.present?
-      created << product
+      product.update_labels(labels) if labels.present? && !@dry_run
+      created << [index, product, labels]
     end
 
     def item_params(raw_item)
@@ -100,6 +117,17 @@ module Products
 
     def hash_like?(item)
       item.is_a?(Hash) || item.is_a?(ActionController::Parameters)
+    end
+
+    def build_dry_run_result(created, errors)
+      DryRunResult.new(
+        would_create: created.map do |index, product, labels|
+          entry = { index: index, sku: product.sku, name: product.name }
+          entry[:labels] = labels if labels.present?
+          entry
+        end,
+        errors: errors
+      )
     end
   end
 end
