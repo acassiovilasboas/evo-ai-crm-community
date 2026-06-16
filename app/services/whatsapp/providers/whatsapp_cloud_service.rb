@@ -34,7 +34,14 @@ module Whatsapp
       end
 
       def sync_templates
-        templates = fetch_whatsapp_templates("#{business_account_path}/message_templates?access_token=#{whatsapp_channel.provider_config['api_key']}")
+        # When EvoHub proxy is active, authenticate via Authorization: Bearer header.
+        # Falling back to ?access_token= query param breaks the Hub's proxy auth.
+        url = if MetaBaseUrl.enabled?
+                "#{business_account_path}/message_templates"
+              else
+                "#{business_account_path}/message_templates?access_token=#{whatsapp_channel.provider_config['api_key']}"
+              end
+        templates = fetch_whatsapp_templates(url)
         return if templates.blank?
 
         templates.each do |template_data|
@@ -64,7 +71,7 @@ module Whatsapp
       end
 
       def fetch_whatsapp_templates(url)
-        response = HTTParty.get(url)
+        response = HTTParty.get(url, headers: api_headers)
         return [] unless response.success?
 
         next_url = next_url(response)
@@ -79,11 +86,15 @@ module Whatsapp
       end
 
       def validate_provider_config?
-        url = "#{business_account_path}/message_templates?access_token=#{whatsapp_channel.provider_config['api_key']}"
+        url = if MetaBaseUrl.enabled?
+                "#{business_account_path}/message_templates"
+              else
+                "#{business_account_path}/message_templates?access_token=#{whatsapp_channel.provider_config['api_key']}"
+              end
         Rails.logger.info "WhatsApp Cloud validation URL: #{url}"
         Rails.logger.info "WhatsApp Cloud provider_config: #{whatsapp_channel.provider_config.inspect}"
 
-        response = HTTParty.get(url)
+        response = HTTParty.get(url, headers: api_headers)
 
         Rails.logger.info "WhatsApp Cloud validation response status: #{response.code}"
         Rails.logger.info "WhatsApp Cloud validation response body: #{response.body}"
