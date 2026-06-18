@@ -259,7 +259,30 @@ class Contact < ApplicationRecord
 
   def prepare_contact_attributes
     prepare_email_attribute
+    prepare_phone_number_attribute
     prepare_jsonb_attributes
+  end
+
+  # Normalize the phone number to the canonical form WhatsApp resolves to, so that
+  # every write path (leads API, widget, import, inbound WhatsApp) converges on one
+  # string and stops creating duplicate contacts. See Whatsapp::PhoneNumberNormalizer
+  # (a faithful port of Evolution API's createJid). The E.164 format validation below
+  # remains the final guard.
+  def prepare_phone_number_attribute
+    return if phone_number.blank?
+
+    # Only normalize when the value is actually being set or changed in this save.
+    # Re-normalizing an untouched persisted record would lazily rewrite legacy
+    # numbers (e.g. older inbound 13-digit form) and could collide with the
+    # uniqueness validation against a pre-existing twin — turning a harmless
+    # legacy duplicate into a hard save error. New records and real edits still
+    # get normalized; cleaning up legacy twins is a separate dedupe job.
+    return unless phone_number_changed?
+
+    digits = Whatsapp::PhoneNumberNormalizer.call(phone_number)
+    return if digits.blank?
+
+    self.phone_number = "+#{digits}"
   end
 
   def prepare_email_attribute

@@ -173,12 +173,14 @@ class Public::Leads::CreationService
   def normalize_phone_number(phone)
     return nil if phone.blank?
 
-    # Normalize phone to E.164 format
-    phone = phone.to_s.strip.gsub(/[^\d+]/, '') # Remove non-digit/non-plus characters
-    phone = "+#{phone}" unless phone.start_with?('+')
+    # Canonicalize to the same form WhatsApp resolves to (Brazilian nono dígito,
+    # MX/AR extra digit) via the shared normalizer — a faithful port of Evolution
+    # API's createJid. This keeps the leads API in lockstep with the inbound
+    # WhatsApp path so the same person never lands as two contacts.
+    phone = Whatsapp::PhoneNumberNormalizer.to_e164(phone)
 
     # Validate E.164 format: +[1-9]\d{1,14}
-    unless phone.match?(/\A\+[1-9]\d{1,14}\z/)
+    unless phone.present? && phone.match?(/\A\+[1-9]\d{1,14}\z/)
       raise StandardError, "Phone number must be in E.164 format (+[country][number]). Example: +5511999998888"
     end
 
