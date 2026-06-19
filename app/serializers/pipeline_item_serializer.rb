@@ -90,7 +90,10 @@ module PipelineItemSerializer
       )
       result[:conversation]['uuid'] = pipeline_item.conversation.uuid
       if pipeline_item.conversation.association(:contact).loaded? && pipeline_item.conversation.contact
-        result[:contact] = ContactSerializer.serialize(pipeline_item.conversation.contact)
+        # include_labels: false — the pipelines board does not render contact labels
+        # (it uses conversation.labels), and contact.labels triggers an N+1 (tags load
+        # + a Label.find_by per tag). Skipping it keeps GET /pipelines off the timeout.
+        result[:contact] = ContactSerializer.serialize(pipeline_item.conversation.contact, include_labels: false)
       end
       if pipeline_item.conversation.association(:assignee).loaded? && pipeline_item.conversation.assignee
         result[:assignee] = {
@@ -104,7 +107,8 @@ module PipelineItemSerializer
     end
 
     if include_entity && pipeline_item.contact.present? && pipeline_item.association(:contact).loaded? && pipeline_item.contact
-      result[:contact] = ContactSerializer.serialize(pipeline_item.contact)
+      # include_labels: false — see note above; pipelines board does not use contact labels.
+      result[:contact] = ContactSerializer.serialize(pipeline_item.contact, include_labels: false)
     end
 
     # Include tasks info if requested. When a pre-computed batch index is passed
