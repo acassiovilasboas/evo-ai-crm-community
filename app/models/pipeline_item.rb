@@ -345,6 +345,11 @@ class PipelineItem < ApplicationRecord
       )
     end
 
+    # Stage changed → the "stuck in stage" clock restarts, so wipe any
+    # stage_stagnation inactivity executions for this item (reply executions are
+    # left intact — they reset on incoming messages instead).
+    StageInactivityExecution.reset_for_item(id, base: 'stage_stagnation')
+
     # Trigger automation event for pipeline stage update
     Rails.configuration.dispatcher.dispatch(
       'pipeline_stage_updated',
