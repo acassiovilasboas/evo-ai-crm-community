@@ -505,7 +505,10 @@ class Contact < ApplicationRecord
     default_pipeline = Pipeline.default.first
     return unless default_pipeline
 
-    return if default_pipeline.pipeline_items.exists?(contact: self)
+    # Don't auto-assign to the default pipeline if the contact already belongs to
+    # an active journey in ANY pipeline — otherwise the same contact ends up in two
+    # pipelines at once (e.g. a custom "Jornada Pós-Compra" item plus a default one).
+    return if pipeline_items.active.exists?
 
     default_pipeline.add_contact(self, nil, nil)
   rescue StandardError => e
