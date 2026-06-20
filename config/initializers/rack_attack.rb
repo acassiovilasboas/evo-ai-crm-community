@@ -1,3 +1,5 @@
+require 'digest'
+
 class Rack::Attack
   ### Configure Cache ###
 
@@ -197,6 +199,25 @@ class Rack::Attack
   throttle('/api/v2/reports', limit: ENV.fetch('RATE_LIMIT_REPORTS_API_ACCOUNT_LEVEL', '1000').to_i, period: 1.minute) do |req|
     match_data = %r{/api/v2/reports}.match(req.path)
     req.ip if match_data.present?
+  end
+
+  ## Prevent abuse of products bulk import (EVO-1555 S1)
+  ## Each request can ingest up to 500 products; default 10 reqs/min/key = 5000 products/min/key.
+  ## Endpoint authenticates via Authorization: Bearer; discriminator hashes the token (digest, not raw)
+  ## so the Redis key never holds credentials. Falls back to api_access_token then IP.
+  throttle('api/v1/products/bulk', limit: ENV.fetch('RATE_LIMIT_PRODUCTS_BULK', '10').to_i, period: 1.minute) do |req|
+    if req.path_without_extentions == '/api/v1/products/bulk' && req.post?
+      authorization = req.get_header('HTTP_AUTHORIZATION')
+      api_token     = req.get_header('HTTP_API_ACCESS_TOKEN') || req.get_header('api_access_token')
+
+      if authorization.present?
+        "bearer:#{Digest::SHA256.hexdigest(authorization)}"
+      elsif api_token.present?
+        "api_token:#{Digest::SHA256.hexdigest(api_token)}"
+      else
+        "ip:#{req.ip}"
+      end
+    end
   end
 
   ## ----------------------------------------------- ##
