@@ -18,6 +18,7 @@
 class Channel::Whatsapp < ApplicationRecord
   include Channelable
   include Reauthorizable
+  include EvolutionHubReconcilable
   include ChannelMessageTemplates
   include EvolutionHubChannelCleanup
 

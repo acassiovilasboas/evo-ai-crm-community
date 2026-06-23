@@ -19,6 +19,7 @@
 class Channel::FacebookPage < ApplicationRecord
   include Channelable
   include Reauthorizable
+  include EvolutionHubReconcilable
   include ChannelMessageTemplates
   include EvolutionHubChannelCleanup
 
