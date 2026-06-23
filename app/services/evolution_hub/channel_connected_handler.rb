@@ -75,9 +75,9 @@ module EvolutionHub
       provider_config['business_account_id'] = meta['waba_id'] if meta['waba_id'].present?
       hub_block = provider_config['evolution_hub'] || {}
       hub_block.merge!(
-        'channel_id'    => payload['channel_id'].presence    || hub_block['channel_id'],
+        'channel_id' => payload['channel_id'].presence    || hub_block['channel_id'],
         'channel_token' => payload['channel_token'].presence || hub_block['channel_token'],
-        'status'        => 'active'
+        'status' => 'active'
       )
       provider_config['evolution_hub'] = hub_block
 
@@ -112,31 +112,74 @@ module EvolutionHub
     end
 
     def mark_facebook_connected(channel)
-      channel.page_access_token = meta['access_token'] if meta['access_token'].present?
-      channel.evolution_hub_meta = (channel.evolution_hub_meta || {}).merge(
-        'channel_id'    => payload['channel_id'],
-        'channel_token' => payload['channel_token'],
-        'status'        => 'active'
-      )
+      # O Hub guarda as creds do FB em `facebook_connection` (não em `meta_connection`); o payload
+      # do channel_connected inclui essa chave. Lê page_id/page_access_token dela. Preserva o que
+      # já existe se o payload omitir (nunca sobrescreve com nil — igual mark_whatsapp_connected).
+      fb = payload['facebook_connection'] || {}
+      channel.page_access_token = meta['access_token'].presence || fb['page_access_token'].presence || channel.page_access_token
+      channel.page_id = fb['page_id'] if channel.read_attribute(:page_id).blank? && fb['page_id'].present?
+      channel.evolution_hub_meta = active_hub_meta(channel)
       channel.save!
       mark_inbox_active(channel)
     end
 
     def mark_instagram_connected(channel)
-      channel.access_token = meta['access_token'] if meta['access_token'].present?
-      channel.instagram_id = meta['instagram_user_id'] if meta['instagram_user_id'].present?
-      channel.evolution_hub_meta = (channel.evolution_hub_meta || {}).merge(
-        'channel_id'    => payload['channel_id'],
-        'channel_token' => payload['channel_token'],
-        'status'        => 'active'
-      )
+      # O Hub guarda as creds do IG em `instagram_connection`; o payload inclui essa chave. Sem o
+      # instagram_id REAL a publicação/insights do IG quebram (é o {ig-id} da Graph API).
+      ig = payload['instagram_connection'] || {}
+      token = meta['access_token'].presence || ig['access_token'].presence
+      channel.access_token = token if token
+      if channel.instagram_id.blank?
+        channel.instagram_id = meta['instagram_user_id'].presence || ig['instagram_user_id'].presence || ig['instagram_id'].presence
+      end
+      # Fallback (Hub antigo, sem a chave no payload): busca o id real via GET /channels/:id.
+      channel.instagram_id = real_instagram_id_from_hub(channel) if channel.instagram_id.blank?
+      ensure_instagram_presence(channel)
+      channel.evolution_hub_meta = active_hub_meta(channel)
       channel.save!
       mark_inbox_active(channel)
+    end
+
+    # Merge do evolution_hub_meta marcando 'active' e PRESERVANDO channel_id/channel_token
+    # (`.presence || existente`, igual mark_whatsapp_connected) — nunca sobrescreve com nil
+    # quando o Hub omite o token no lifecycle. Compartilhado por IG e FB.
+    def active_hub_meta(channel)
+      existing = channel.evolution_hub_meta || {}
+      existing.merge(
+        'channel_id' => payload['channel_id'].presence    || existing['channel_id'],
+        'channel_token' => payload['channel_token'].presence || existing['channel_token'],
+        'status' => 'active'
+      )
+    end
+
+    # IG valida `access_token`/`instagram_id` presence ao virar 'active'. Se o Hub não mandou o
+    # access_token (trafega via channel_token/proxy), injeta placeholder p/ não dar RecordInvalid.
+    # ⚠️ read_attribute: o getter `access_token` é sobrescrito (RefreshOauthTokenService) e
+    # retorna nil quando expires_at blank — usar o getter clobraria o token recém-setado.
+    def ensure_instagram_presence(channel)
+      channel.access_token = "hub-managed-#{SecureRandom.hex(8)}" if channel.read_attribute(:access_token).blank?
+      channel.instagram_id = "pending_#{SecureRandom.hex(6)}" if channel.instagram_id.blank?
+    end
+
+    # Busca o instagram_user_id REAL no Hub (GET /channels/:id → instagram_connection) quando o
+    # webhook não o trouxe. Best-effort: nil em qualquer erro (cai no placeholder). Não loga token.
+    def real_instagram_id_from_hub(channel)
+      hub_cid = (channel.evolution_hub_meta || {})['channel_id'].presence || payload['channel_id'].presence
+      return nil if hub_cid.blank?
+
+      resp = EvolutionHub::Client.new.get_channel(hub_cid)
+      body = resp.is_a?(Hash) ? (resp['channel'] || resp) : {}
+      ig = body['instagram_connection'] || {}
+      ig['instagram_user_id'].presence || ig['instagram_id'].presence
+    rescue StandardError => e
+      Rails.logger.warn("EvolutionHub::ChannelConnected: get_channel falhou p/ ig real id (#{e.class}: #{e.message})")
+      nil
     end
 
     def mark_inbox_active(channel)
       inbox = channel.inbox
       return unless inbox
+
       inbox.update!(enable_auto_assignment: true) if inbox.respond_to?(:enable_auto_assignment)
     end
   end
