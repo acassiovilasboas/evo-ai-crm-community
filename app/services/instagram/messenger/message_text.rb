@@ -3,10 +3,21 @@ class Instagram::Messenger::MessageText < Instagram::BaseMessageText
 
   def ensure_contact(ig_scope_id)
     result = fetch_instagram_user(ig_scope_id)
+    # Hub mode: fetch_instagram_user pula o Koala e retorna {} (o channel_token opaco
+    # do EvoHub não autentica no Graph → 190 travaria a mensagem). Sem fallback, o
+    # contato/contact_inbox não nasce e create_message aborta. Garante o fallback pelo
+    # próprio ig_scope_id para a conversa ser criada (enrich de perfil = follow-up).
+    result = { 'id' => ig_scope_id, 'name' => nil }.with_indifferent_access if result.blank?
     find_or_create_contact(result) if result.present?
   end
 
   def fetch_instagram_user(ig_scope_id)
+    # Hub mode: page_access_token é o channel_token opaco do EvoHub — Koala bate no
+    # Graph com ele → AuthenticationError 190 → authorization_error! marca o canal
+    # reauthorization_required? e o MessageBuilder#perform engole a DM. Pula em Hub
+    # mode (mesmo padrão de Channel::FacebookPage subscribe/unsubscribe).
+    return {} if MetaBaseUrl.enabled?
+
     k = Koala::Facebook::API.new(@inbox.channel.page_access_token) if @inbox.facebook?
     k.get_object(ig_scope_id) || {}
   rescue Koala::Facebook::AuthenticationError => e

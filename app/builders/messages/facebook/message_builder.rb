@@ -5,7 +5,7 @@
 #    Hence there is no need to set user_id in message for outgoing echo messages.
 
 # Load EvolutionExceptionTracker (using load to avoid Zeitwerk constant name mismatch)
-load Rails.root.join('lib', 'evolution_exception_tracker.rb').to_s unless defined?(EvolutionExceptionTracker)
+load Rails.root.join('lib/evolution_exception_tracker.rb').to_s unless defined?(EvolutionExceptionTracker)
 
 class Messages::Facebook::MessageBuilder < Messages::Messenger::MessageBuilder
   attr_reader :response
@@ -83,7 +83,7 @@ class Messages::Facebook::MessageBuilder < Messages::Messenger::MessageBuilder
 
       # If found conversation is a post conversation (shouldn't happen, but double-check), create new one
       if found_conversation&.post_conversation?
-        Rails.logger.warn("MessageBuilder: Found post conversation for Messenger direct message, creating new normal conversation")
+        Rails.logger.warn('MessageBuilder: Found post conversation for Messenger direct message, creating new normal conversation')
         return build_conversation
       end
 
@@ -108,7 +108,7 @@ class Messages::Facebook::MessageBuilder < Messages::Messenger::MessageBuilder
 
     # Double-check: if somehow we got a post conversation, create a new normal one
     if last_conversation.post_conversation?
-      Rails.logger.warn("MessageBuilder: Found post conversation for Messenger direct message, creating new normal conversation")
+      Rails.logger.warn('MessageBuilder: Found post conversation for Messenger direct message, creating new normal conversation')
       return build_conversation
     end
 
@@ -171,6 +171,13 @@ class Messages::Facebook::MessageBuilder < Messages::Messenger::MessageBuilder
   # rubocop:disable Metrics/AbcSize
   # rubocop:disable Metrics/MethodLength
   def contact_params
+    # Hub mode: page_access_token é o channel_token opaco do EvoHub. O Koala bate no
+    # Graph com ele → AuthenticationError 190 → authorization_error! marca o canal e
+    # o perform faz `return if reauthorization_required?` → a DM do Facebook nunca
+    # vira mensagem. Pula o enrich de perfil em Hub mode e usa o fallback (John Doe
+    # sem avatar); enriquecer via proxy do Hub é follow-up. Mesmo motivo do IG.
+    return process_contact_params_result({}) if MetaBaseUrl.enabled?
+
     begin
       k = Koala::Facebook::API.new(@inbox.channel.page_access_token) if @inbox.facebook?
       result = k.get_object(@sender_id) || {}

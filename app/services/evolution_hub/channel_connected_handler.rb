@@ -177,6 +177,14 @@ module EvolutionHub
     end
 
     def mark_inbox_active(channel)
+      # Reconectar SEMPRE limpa o flag de reautorização (Reauthorizable, em Redis).
+      # Sem isto, um canal que já tropeçou em 190 (ex.: a DM batia no Graph com o
+      # channel_token opaco antes do fix) fica preso em reauthorization_required? e
+      # o MessageBuilder#perform engole TODA DM futura — mesmo após reconectar. O
+      # channel_connected é o ponto natural pra zerar (o operador acabou de refazer o
+      # OAuth no Hub). reauthorized! limpa o count + o flag.
+      channel.reauthorized! if channel.respond_to?(:reauthorized!)
+
       inbox = channel.inbox
       return unless inbox
 

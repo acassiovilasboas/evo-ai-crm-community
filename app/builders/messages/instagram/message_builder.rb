@@ -6,6 +6,12 @@ class Messages::Instagram::MessageBuilder < Messages::Instagram::BaseMessageBuil
   private
 
   def get_story_object_from_source_id(source_id)
+    # Hub mode: o access_token é o channel_token opaco do EvoHub — bater em
+    # graph.instagram.com com ele dá 190 e dispara authorization_error! (trava a
+    # mensagem). Pula o enrich de story em Hub mode (mesmo motivo do fetch de perfil
+    # em Instagram::MessageText#fetch_instagram_user).
+    return nil if MetaBaseUrl.enabled?
+
     url = "#{base_uri}/#{source_id}?fields=story,from&access_token=#{@inbox.channel.access_token}"
 
     response = HTTParty.get(url)

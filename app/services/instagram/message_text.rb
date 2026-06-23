@@ -8,7 +8,7 @@ class Instagram::MessageText < Instagram::BaseMessageText
 
     # Use ig_scope_id as fallback if API didn't return user data
     if result.blank? || result['id'].blank?
-      Rails.logger.warn("[Instagram::MessageText] fetch_instagram_user returned empty result or nil id, using ig_scope_id as fallback")
+      Rails.logger.warn('[Instagram::MessageText] fetch_instagram_user returned empty result or nil id, using ig_scope_id as fallback')
       result = { 'id' => ig_scope_id, 'name' => nil }.with_indifferent_access
     end
 
@@ -17,21 +17,33 @@ class Instagram::MessageText < Instagram::BaseMessageText
     Rails.logger.info("[Instagram::MessageText] After find_or_create_contact, contact_inbox: #{@contact_inbox.inspect}")
   end
 
+  # Hub mode: access_token é o channel_token opaco do EvoHub → graph.instagram.com dá
+  # 190 → authorization_error! prende o canal e o MessageBuilder#perform engole a DM.
+  # Pula o enrich (ensure_contact cai no fallback {id: ig_scope_id}); enrich via proxy
+  # do Hub = follow-up. Mesmo padrão de subscribe/unsubscribe no Channel::Instagram.
   def fetch_instagram_user(ig_scope_id)
+    return {} if MetaBaseUrl.enabled?
+
     # Use only fields that are available for regular Instagram users
     # profile_picture_url is the correct field name (not profile_pic)
     # Some fields like follower_count may not be available for all user types
     fields = 'id,name,username,profile_pic'
     url = "#{base_uri}/#{ig_scope_id}?fields=#{fields}&access_token=#{@inbox.channel.access_token}"
 
-    Rails.logger.info("[Instagram::MessageText] Fetching user data from Instagram API - ig_scope_id: #{ig_scope_id}, url: #{url.gsub(/access_token=[^&]+/, 'access_token=[FILTERED]')}")
+    Rails.logger.info("[Instagram::MessageText] Fetching user data from Instagram API - ig_scope_id: #{ig_scope_id}, url: #{url.gsub(
+      /access_token=[^&]+/, 'access_token=[FILTERED]'
+    )}")
     response = HTTParty.get(url)
 
     Rails.logger.info("[Instagram::MessageText] Instagram API response - status: #{response.code}, success?: #{response.success?}, body: #{response.body.inspect}")
 
     if response.success?
       # Check if response body is empty or just {}
-      parsed_body = JSON.parse(response.body) rescue {}
+      parsed_body = begin
+        JSON.parse(response.body)
+      rescue StandardError
+        {}
+      end
       if parsed_body.blank? || parsed_body == {}
         Rails.logger.warn("[Instagram::MessageText] Instagram API returned empty response (status 200) - this usually means user consent is required or token lacks permissions. User ID: #{ig_scope_id}")
         return {}
@@ -74,7 +86,7 @@ class Instagram::MessageText < Instagram::BaseMessageText
     # https://developers.facebook.com/docs/messenger-platform/error-codes
     # Access token has expired or become invalid.
     if error_code == 190
-      Rails.logger.error("[Instagram::MessageText] Access token expired or invalid (error 190), marking channel as requiring reauthorization")
+      Rails.logger.error('[Instagram::MessageText] Access token expired or invalid (error 190), marking channel as requiring reauthorization')
       channel.authorization_error!
     end
 
@@ -86,7 +98,7 @@ class Instagram::MessageText < Instagram::BaseMessageText
     # In such cases, we receive the error "User consent is required to access user profile".
     # We can safely ignore this error.
     if error_code == 230
-      Rails.logger.info("[Instagram::MessageText] User consent required (error 230) - this is expected for first-time users. Using ig_scope_id as fallback.")
+      Rails.logger.info('[Instagram::MessageText] User consent required (error 230) - this is expected for first-time users. Using ig_scope_id as fallback.')
       return
     end
 
@@ -105,11 +117,11 @@ class Instagram::MessageText < Instagram::BaseMessageText
     Rails.logger.info("[Instagram::MessageText] create_message called - contact_inbox: #{@contact_inbox.inspect}")
 
     unless @contact_inbox
-      Rails.logger.warn("[Instagram::MessageText] contact_inbox is nil, cannot create message")
+      Rails.logger.warn('[Instagram::MessageText] contact_inbox is nil, cannot create message')
       return
     end
 
-    Rails.logger.info("[Instagram::MessageText] Creating message via MessageBuilder")
+    Rails.logger.info('[Instagram::MessageText] Creating message via MessageBuilder')
     result = Messages::Instagram::MessageBuilder.new(@messaging, @inbox, outgoing_echo: agent_message_via_echo?).perform
     Rails.logger.info("[Instagram::MessageText] MessageBuilder result: #{result.inspect}")
     result
