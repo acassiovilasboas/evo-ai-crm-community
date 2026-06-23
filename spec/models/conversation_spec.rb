@@ -215,5 +215,33 @@ RSpec.describe Conversation, type: :model do
       expect(pipeline).to be_nil
       expect(stage).to be_nil
     end
+
+    it 'retorna o lead-item do contato como 3º valor (para promoção)' do
+      lead = PipelineItem.create!(pipeline: vendas_pipeline, pipeline_stage: vendas_stage, contact: contact)
+      PipelineItem.where(conversation: persisted_conversation).destroy_all
+
+      _pipeline, _stage, lead_item = persisted_conversation.send(:resolve_target_pipeline)
+      expect(lead_item).to eq(lead)
+    end
+  end
+
+  describe '#assign_to_default_pipeline fusão (lead-card promotion)' do
+    before { vendas_stage }
+
+    let(:persisted_conversation) { create_conversation }
+
+    it 'PROMOVE o lead-card existente do contato em vez de criar um 2º card' do
+      # Lead da compra: item por-contato (conversation_id nil) já no funil.
+      lead = PipelineItem.create!(pipeline: vendas_pipeline, pipeline_stage: vendas_stage, contact: contact)
+      PipelineItem.where(conversation: persisted_conversation).destroy_all
+
+      expect do
+        persisted_conversation.send(:assign_to_default_pipeline)
+      end.not_to change(PipelineItem, :count) # promove, não cria
+
+      expect(lead.reload.conversation_id).to eq(persisted_conversation.id)
+      # Um único card ativo para o contato neste funil.
+      expect(PipelineItem.active.where(contact: contact, pipeline: vendas_pipeline).count).to eq(1)
+    end
   end
 end
