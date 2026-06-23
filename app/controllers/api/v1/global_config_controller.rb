@@ -29,6 +29,7 @@ class Api::V1::GlobalConfigController < Api::BaseController
       hasEvolutionGoConfig: IntegrationRequirements.configured?('evolution_go'),
       hasEvolutionHubConfig: IntegrationRequirements.configured?('evolution_hub'),
       evolutionHubEnabled: evolution_hub_active?,
+      hubAllowExistingChannels: hub_allow_existing_channels?,
       hasTwitterConfig: IntegrationRequirements.configured?('twitter'),
       openaiConfigured: openai_configured?,
       enableAccountSignup: enable_account_signup?,
@@ -41,6 +42,17 @@ class Api::V1::GlobalConfigController < Api::BaseController
     value = GlobalConfigService.load('ENABLE_ACCOUNT_SIGNUP', 'false')
     normalized_value = value.to_s.strip.downcase
     normalized_value == 'true'
+  end
+
+  # Permite a opção "Usar canal existente do Hub" no modal de criação de inbox.
+  # DEFAULT true (retrocompat: community standalone mantém o comportamento). No
+  # deploy enterprise/SaaS seta-se HUB_ALLOW_EXISTING_CHANNELS=false, pois a
+  # listagem de canais existentes do Hub usa credenciais GLOBAIS sem filtro de
+  # tenant → vazaria conexões de outras agências. O front esconde a opção e o
+  # controller do Hub também 403a available_channels (defesa em profundidade).
+  def hub_allow_existing_channels?
+    value = GlobalConfigService.load('HUB_ALLOW_EXISTING_CHANNELS', 'true')
+    ActiveModel::Type::Boolean.new.cast(value)
   end
 
   def openai_configured?

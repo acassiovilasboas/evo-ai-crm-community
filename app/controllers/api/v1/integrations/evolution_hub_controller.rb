@@ -52,6 +52,16 @@ class Api::V1::Integrations::EvolutionHubController < Api::V1::BaseController
   #
   # Usado pelo dropdown "Usar canal existente" no modal de criação de inbox.
   def available_channels
+    # Defesa em profundidade (anti-vazamento cross-tenant): quando
+    # HUB_ALLOW_EXISTING_CHANNELS=false (deploy enterprise/SaaS), a listagem de
+    # canais existentes do Hub é DESLIGADA no backend, não só escondida no front.
+    # A listagem usa credenciais GLOBAIS sem filtro de tenant → vazaria conexões
+    # de outras agências. Default ON (community standalone inalterado).
+    unless hub_allow_existing_channels?
+      return render json: { error: 'Feature disabled', code: 'HUB_EXISTING_CHANNELS_DISABLED' },
+                    status: :forbidden
+    end
+
     payload = hub_client.list_channels
     raw = payload.is_a?(Hash) ? (payload['channels'] || payload['data'] || []) : payload
     raw = [] unless raw.is_a?(Array)
@@ -68,6 +78,14 @@ class Api::V1::Integrations::EvolutionHubController < Api::V1::BaseController
   end
 
   private
+
+  # Mesma flag do GlobalConfigController#hub_allow_existing_channels? — default
+  # true (community standalone inalterado); false no enterprise/SaaS desliga a
+  # listagem de canais existentes (anti-vazamento cross-tenant).
+  def hub_allow_existing_channels?
+    value = GlobalConfigService.load('HUB_ALLOW_EXISTING_CHANNELS', 'true')
+    ActiveModel::Type::Boolean.new.cast(value)
+  end
 
   def hub_client
     @hub_client ||= EvolutionHub::Client.new
