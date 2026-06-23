@@ -17,23 +17,28 @@ class Instagram::MessageText < Instagram::BaseMessageText
     Rails.logger.info("[Instagram::MessageText] After find_or_create_contact, contact_inbox: #{@contact_inbox.inspect}")
   end
 
-  # Hub mode: access_token é o channel_token opaco do EvoHub → graph.instagram.com dá
-  # 190 → authorization_error! prende o canal e o MessageBuilder#perform engole a DM.
-  # Pula o enrich (ensure_contact cai no fallback {id: ig_scope_id}); enrich via proxy
-  # do Hub = follow-up. Mesmo padrão de subscribe/unsubscribe no Channel::Instagram.
+  # Busca nome/username/foto do contato. Em Hub mode roteia pelo proxy /meta do EvoHub
+  # com `Authorization: Bearer {channel_token}` (o access_token DIRETO no Graph é o
+  # channel_token opaco → 190 → authorization_error! prendia o canal e o MessageBuilder
+  # engolia a DM). Direto-no-Meta (não-Hub) mantém o ?access_token= de sempre.
+  # ⚠️ O token do Bearer é evolution_hub_meta['channel_token'] (o getter access_token é
+  # sobrescrito por RefreshOauthTokenService e retorna 'hub-managed-…', NÃO o token real).
+  # 'profile_pic' é o campo do contato (sender-scoped id); 'profile_picture_url' só existe
+  # p/ business account — process_successful_response lê os dois (fallback).
   def fetch_instagram_user(ig_scope_id)
-    return {} if MetaBaseUrl.enabled?
-
-    # Use only fields that are available for regular Instagram users
-    # profile_picture_url is the correct field name (not profile_pic)
-    # Some fields like follower_count may not be available for all user types
     fields = 'id,name,username,profile_pic'
-    url = "#{base_uri}/#{ig_scope_id}?fields=#{fields}&access_token=#{@inbox.channel.access_token}"
 
-    Rails.logger.info("[Instagram::MessageText] Fetching user data from Instagram API - ig_scope_id: #{ig_scope_id}, url: #{url.gsub(
-      /access_token=[^&]+/, 'access_token=[FILTERED]'
-    )}")
-    response = HTTParty.get(url)
+    if MetaBaseUrl.enabled?
+      url = "#{MetaBaseUrl.for(:instagram)}/#{ig_scope_id}?fields=#{fields}"
+      Rails.logger.info("[Instagram::MessageText] Fetching user via Hub proxy - ig_scope_id: #{ig_scope_id}")
+      response = HTTParty.get(url, headers: hub_auth_headers)
+    else
+      url = "#{base_uri}/#{ig_scope_id}?fields=#{fields}&access_token=#{@inbox.channel.access_token}"
+      Rails.logger.info("[Instagram::MessageText] Fetching user data from Instagram API - ig_scope_id: #{ig_scope_id}, url: #{url.gsub(
+        /access_token=[^&]+/, 'access_token=[FILTERED]'
+      )}")
+      response = HTTParty.get(url)
+    end
 
     Rails.logger.info("[Instagram::MessageText] Instagram API response - status: #{response.code}, success?: #{response.success?}, body: #{response.body.inspect}")
 
@@ -67,12 +72,16 @@ class Instagram::MessageText < Instagram::BaseMessageText
 
   def process_successful_response(response)
     result = JSON.parse(response.body).with_indifferent_access
+    # O contato (sender-scoped id) expõe `profile_pic`; só o business account expõe
+    # `profile_picture_url`. O código antigo lia SÓ profile_picture_url → avatar do
+    # contato sempre nil (bug latente, Hub e não-Hub). Preferir profile_pic, fallback url.
+    pic = result['profile_pic'].presence || result['profile_picture_url'].presence
     {
       'id' => result['id'],
       'name' => result['name'],
       'username' => result['username'],
-      'profile_pic' => result['profile_picture_url'], # Map profile_picture_url to profile_pic for compatibility
-      'profile_picture_url' => result['profile_picture_url']
+      'profile_pic' => pic,
+      'profile_picture_url' => pic
     }.with_indifferent_access
   end
 
@@ -111,6 +120,14 @@ class Instagram::MessageText < Instagram::BaseMessageText
 
   def base_uri
     "https://graph.instagram.com/#{GlobalConfigService.load('INSTAGRAM_API_VERSION', 'v23.0')}"
+  end
+
+  # Header de auth do proxy /meta do EvoHub (Hub-ON). O proxy EXIGE Bearer (rejeita
+  # ?access_token= com 401). Token = evolution_hub_meta['channel_token'] (NÃO o getter
+  # access_token, que é sobrescrito e retorna 'hub-managed-…'). Nunca logar o header.
+  def hub_auth_headers
+    token = (@inbox.channel.evolution_hub_meta || {})['channel_token']
+    { 'Authorization' => "Bearer #{token}" }
   end
 
   def create_message

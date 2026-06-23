@@ -6,15 +6,16 @@ class Messages::Instagram::MessageBuilder < Messages::Instagram::BaseMessageBuil
   private
 
   def get_story_object_from_source_id(source_id)
-    # Hub mode: o access_token é o channel_token opaco do EvoHub — bater em
-    # graph.instagram.com com ele dá 190 e dispara authorization_error! (trava a
-    # mensagem). Pula o enrich de story em Hub mode (mesmo motivo do fetch de perfil
-    # em Instagram::MessageText#fetch_instagram_user).
-    return nil if MetaBaseUrl.enabled?
-
-    url = "#{base_uri}/#{source_id}?fields=story,from&access_token=#{@inbox.channel.access_token}"
-
-    response = HTTParty.get(url)
+    # Hub mode: roteia pelo proxy /meta do EvoHub com Bearer {channel_token} (o
+    # access_token direto no Graph é o channel_token opaco → 190 → authorization_error!
+    # travava a mensagem). Direto-no-Meta mantém o ?access_token= de sempre.
+    if MetaBaseUrl.enabled?
+      url = "#{MetaBaseUrl.for(:instagram)}/#{source_id}?fields=story,from"
+      response = HTTParty.get(url, headers: hub_auth_headers)
+    else
+      url = "#{base_uri}/#{source_id}?fields=story,from&access_token=#{@inbox.channel.access_token}"
+      response = HTTParty.get(url)
+    end
 
     return JSON.parse(response.body).with_indifferent_access if response.success?
 
@@ -44,5 +45,12 @@ class Messages::Instagram::MessageBuilder < Messages::Instagram::BaseMessageBuil
 
   def base_uri
     "https://graph.instagram.com/#{GlobalConfigService.load('INSTAGRAM_API_VERSION', 'v23.0')}"
+  end
+
+  # Bearer do proxy /meta do EvoHub (Hub-ON exige Authorization header; rejeita query).
+  # Token = evolution_hub_meta['channel_token'] (o getter access_token é sobrescrito).
+  def hub_auth_headers
+    token = (@inbox.channel.evolution_hub_meta || {})['channel_token']
+    { 'Authorization' => "Bearer #{token}" }
   end
 end
