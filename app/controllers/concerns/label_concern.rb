@@ -22,6 +22,14 @@ module LabelConcern
   # compares against `tags.name`) could not match on the user-configured
   # title. Translate UUID-shaped inputs to titles here; leave other strings
   # untouched for back-compat with any caller that already sends titles.
+  #
+  # EVO-1897 (D8): a UUID that does NOT resolve to a `Label` row (e.g. a
+  # journey/evo-flow caller carrying an id that is absent from the local
+  # `labels` table) must NOT be silently dropped. Doing so made
+  # `update_labels([])` wipe the list and reply `200` with no tagging
+  # persisted — a false-success for add-label/remove-label nodes. Preserve
+  # the original token when it cannot be resolved so the caller's intent is
+  # always reflected as a real tagging.
   def resolve_label_titles(labels)
     return labels if labels.blank?
 
@@ -29,7 +37,7 @@ module LabelConcern
     return non_uuids if uuids.empty?
 
     titles_by_id = Label.where(id: uuids).pluck(:id, :title).to_h
-    resolved = uuids.filter_map { |id| titles_by_id[id] }
+    resolved = uuids.map { |id| titles_by_id[id] || id }
     (non_uuids + resolved).uniq
   end
 end
