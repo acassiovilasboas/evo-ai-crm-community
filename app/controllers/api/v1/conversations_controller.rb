@@ -221,8 +221,8 @@ class Api::V1::ConversationsController < Api::V1::BaseController
       )
     else
       error_response(
-        code: ApiErrorCodes::VALIDATION_ERROR,
-        message: 'Validation failed',
+        ApiErrorCodes::VALIDATION_ERROR,
+        'Validation failed',
         details: @conversation.errors.full_messages,
         status: :unprocessable_entity
       )
@@ -253,8 +253,8 @@ class Api::V1::ConversationsController < Api::V1::BaseController
          CustomExceptions::CustomFilter::InvalidQueryOperator,
          CustomExceptions::CustomFilter::InvalidValue => e
     error_response(
-      code: ApiErrorCodes::INVALID_PARAMETER,
-      message: 'Invalid filter parameters',
+      ApiErrorCodes::INVALID_PARAMETER,
+      'Invalid filter parameters',
       details: e.message,
       status: :bad_request
     )
@@ -322,8 +322,8 @@ class Api::V1::ConversationsController < Api::V1::BaseController
   def transcript
     if params[:email].blank?
       return error_response(
-        code: ApiErrorCodes::MISSING_REQUIRED_FIELD,
-        message: 'Email parameter is required',
+        ApiErrorCodes::MISSING_REQUIRED_FIELD,
+        'Email parameter is required',
         status: :bad_request
       )
     end
@@ -477,8 +477,8 @@ class Api::V1::ConversationsController < Api::V1::BaseController
       )
     else
       error_response(
-        code: ApiErrorCodes::VALIDATION_ERROR,
-        message: 'Validation failed',
+        ApiErrorCodes::VALIDATION_ERROR,
+        'Validation failed',
         details: @conversation.errors.full_messages,
         status: :unprocessable_entity
       )

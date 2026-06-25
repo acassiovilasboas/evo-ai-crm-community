@@ -112,8 +112,8 @@ class Api::V1::NotificationsController < Api::V1::BaseController
     @notification = current_user.notifications.find(params[:id])
   rescue ActiveRecord::RecordNotFound
     error_response(
-      code: ApiErrorCodes::NOTIFICATION_NOT_FOUND,
-      message: "Notification with id #{params[:id]} not found",
+      ApiErrorCodes::NOTIFICATION_NOT_FOUND,
+      "Notification with id #{params[:id]} not found",
       status: :not_found
     )
   end

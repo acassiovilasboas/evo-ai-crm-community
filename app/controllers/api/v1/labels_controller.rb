@@ -81,8 +81,8 @@ class Api::V1::LabelsController < Api::V1::BaseController
     @label = Label.all.find(params[:id])
   rescue ActiveRecord::RecordNotFound
     error_response(
-      code: ApiErrorCodes::LABEL_NOT_FOUND,
-      message: "Label with id #{params[:id]} not found",
+      ApiErrorCodes::LABEL_NOT_FOUND,
+      "Label with id #{params[:id]} not found",
       status: :not_found
     )
   end

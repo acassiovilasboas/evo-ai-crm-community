@@ -36,8 +36,8 @@ class Api::V1::DashboardAppsController < Api::V1::BaseController
     )
   rescue ActiveRecord::RecordInvalid => e
     error_response(
-      code: ApiErrorCodes::VALIDATION_ERROR,
-      message: e.message
+      ApiErrorCodes::VALIDATION_ERROR,
+      e.message
     )
   end
 
@@ -50,8 +50,8 @@ class Api::V1::DashboardAppsController < Api::V1::BaseController
     )
   rescue ActiveRecord::RecordInvalid => e
     error_response(
-      code: ApiErrorCodes::VALIDATION_ERROR,
-      message: e.message
+      ApiErrorCodes::VALIDATION_ERROR,
+      e.message
     )
   end
 
@@ -64,8 +64,8 @@ class Api::V1::DashboardAppsController < Api::V1::BaseController
     )
   rescue ActiveRecord::RecordNotDestroyed => e
     error_response(
-      code: ApiErrorCodes::CANNOT_DELETE_RESOURCE,
-      message: e.message
+      ApiErrorCodes::CANNOT_DELETE_RESOURCE,
+      e.message
     )
   end
 

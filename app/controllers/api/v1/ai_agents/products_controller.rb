@@ -22,8 +22,8 @@ class Api::V1::AiAgents::ProductsController < Api::V1::BaseController
     ids = Array(params[:product_ids] || params[:product_id]).map(&:to_s).reject(&:blank?)
     if ids.empty?
       return error_response(
-        code: ApiErrorCodes::VALIDATION_ERROR,
-        message: 'Provide product_ids or product_id',
+        ApiErrorCodes::VALIDATION_ERROR,
+        'Provide product_ids or product_id',
         status: :unprocessable_entity
       )
     end
@@ -32,8 +32,8 @@ class Api::V1::AiAgents::ProductsController < Api::V1::BaseController
     missing        = ids - found_products
     if missing.any?
       return error_response(
-        code: ApiErrorCodes::RESOURCE_NOT_FOUND,
-        message: "Products not found: #{missing.join(', ')}",
+        ApiErrorCodes::RESOURCE_NOT_FOUND,
+        "Products not found: #{missing.join(', ')}",
         status: :not_found
       )
     end
@@ -58,8 +58,8 @@ class Api::V1::AiAgents::ProductsController < Api::V1::BaseController
     record = AiAgentProduct.find_by(ai_agent_id: ai_agent_id, product_id: params[:id])
     if record.nil?
       return error_response(
-        code: ApiErrorCodes::RESOURCE_NOT_FOUND,
-        message: 'Attachment not found',
+        ApiErrorCodes::RESOURCE_NOT_FOUND,
+        'Attachment not found',
         status: :not_found
       )
     end

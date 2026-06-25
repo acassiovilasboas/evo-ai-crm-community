@@ -65,8 +65,8 @@ class Api::V1::PipelineItems::ProductsController < Api::V1::BaseController
     @pipeline_item = PipelineItem.find(params[:pipeline_item_id])
   rescue ActiveRecord::RecordNotFound
     error_response(
-      code: ApiErrorCodes::RESOURCE_NOT_FOUND,
-      message: "Pipeline item with id #{params[:pipeline_item_id]} not found",
+      ApiErrorCodes::RESOURCE_NOT_FOUND,
+      "Pipeline item with id #{params[:pipeline_item_id]} not found",
       status: :not_found
     )
   end
@@ -75,8 +75,8 @@ class Api::V1::PipelineItems::ProductsController < Api::V1::BaseController
     @link = @pipeline_item.pipeline_item_products.find(params[:id])
   rescue ActiveRecord::RecordNotFound
     error_response(
-      code: ApiErrorCodes::RESOURCE_NOT_FOUND,
-      message: "Pipeline item product link with id #{params[:id]} not found",
+      ApiErrorCodes::RESOURCE_NOT_FOUND,
+      "Pipeline item product link with id #{params[:id]} not found",
       status: :not_found
     )
   end
@@ -111,8 +111,8 @@ class Api::V1::PipelineItems::ProductsController < Api::V1::BaseController
 
   def validation_error_response(record)
     error_response(
-      code: ApiErrorCodes::VALIDATION_ERROR,
-      message: 'Validation failed',
+      ApiErrorCodes::VALIDATION_ERROR,
+      'Validation failed',
       details: record.errors.full_messages,
       status: :unprocessable_entity
     )

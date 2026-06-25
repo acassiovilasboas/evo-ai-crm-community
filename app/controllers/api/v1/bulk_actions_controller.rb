@@ -15,8 +15,8 @@ class Api::V1::BulkActionsController < Api::V1::BaseController
       )
     else
       error_response(
-        code: ApiErrorCodes::INVALID_PARAMETER,
-        message: 'Invalid type. Must be Conversation or Contact'
+        ApiErrorCodes::INVALID_PARAMETER,
+        'Invalid type. Must be Conversation or Contact'
       )
     end
   end
