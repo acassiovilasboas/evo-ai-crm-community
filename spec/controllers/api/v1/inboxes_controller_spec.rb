@@ -68,4 +68,49 @@ RSpec.describe Api::V1::InboxesController, type: :controller do
       end
     end
   end
+
+  describe '#fetch_agent_bot' do
+    let(:agent_bot) { instance_double(AgentBot) }
+
+    before do
+      allow(AgentBot).to receive(:find).with('bot-123').and_return(agent_bot)
+    end
+
+    context 'when the bot id is sent under :agent_bot (frontend)' do
+      it 'resolves the agent bot' do
+        allow(controller).to receive(:params).and_return(
+          ActionController::Parameters.new(agent_bot: 'bot-123')
+        )
+
+        controller.send(:fetch_agent_bot)
+
+        expect(controller.instance_variable_get(:@agent_bot)).to eq(agent_bot)
+      end
+    end
+
+    context 'when the bot id is sent under :agent_bot_id (journeys / evo-flow)' do
+      it 'resolves the agent bot so the binding persists (EVO-1900)' do
+        allow(controller).to receive(:params).and_return(
+          ActionController::Parameters.new(agent_bot_id: 'bot-123')
+        )
+
+        controller.send(:fetch_agent_bot)
+
+        expect(controller.instance_variable_get(:@agent_bot)).to eq(agent_bot)
+      end
+    end
+
+    context 'when no bot id is provided' do
+      it 'leaves @agent_bot nil without hitting the database' do
+        allow(controller).to receive(:params).and_return(
+          ActionController::Parameters.new({})
+        )
+        expect(AgentBot).not_to receive(:find)
+
+        controller.send(:fetch_agent_bot)
+
+        expect(controller.instance_variable_get(:@agent_bot)).to be_nil
+      end
+    end
+  end
 end

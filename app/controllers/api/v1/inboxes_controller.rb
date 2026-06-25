@@ -562,7 +562,12 @@ module Api
         end
 
         def fetch_agent_bot
-          @agent_bot = AgentBot.find(params[:agent_bot]) if params[:agent_bot]
+          # The frontend posts the bot under `agent_bot`, but server-side callers
+          # (journeys / evo-flow assign-bot node) post it under `agent_bot_id`.
+          # Accept both so the binding actually persists instead of silently
+          # falling through to the no-op branch and returning 200. (EVO-1900)
+          bot_id = params[:agent_bot].presence || params[:agent_bot_id].presence
+          @agent_bot = AgentBot.find(bot_id) if bot_id
         rescue ActiveRecord::RecordNotFound
           @agent_bot = nil
         end
