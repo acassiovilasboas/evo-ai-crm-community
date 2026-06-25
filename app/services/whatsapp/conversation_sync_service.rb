@@ -114,11 +114,18 @@ class Whatsapp::ConversationSyncService
   def create_echo_message(echo_data)
     return unless valid_echo_data?(echo_data)
 
-    to_phone_number = echo_data[:to]
-    echo_data[:from]
+    # echo_data[:to] is the raw wa_id of the customer the business messaged from
+    # the WhatsApp Business App. Route it through processed_waid so it converges
+    # on the same source_id the inbound path uses (BR 9th-digit normalization),
+    # otherwise an echo to a brand-new contact would mint a twin of the contact
+    # a later inbound message creates. (see incoming_message_service_helpers)
+    to_phone_number = processed_waid(echo_data[:to])
 
-    # Find the contact this message was sent to
-    contact_inbox = find_contact_inbox_by_phone(to_phone_number)
+    # Create the contact if it does not exist yet: an echo can be the very first
+    # event we see for a customer (owner reached out from their phone before the
+    # customer ever wrote to the CRM). Previously this only looked up an existing
+    # contact_inbox and silently dropped the echo when none was found.
+    contact_inbox = find_or_create_contact_inbox(to_phone_number)
     return unless contact_inbox
 
     conversation = find_or_create_conversation(contact_inbox)
@@ -163,11 +170,6 @@ class Whatsapp::ConversationSyncService
         ).perform
 
     contact_inbox
-  end
-
-  def find_contact_inbox_by_phone(phone_number)
-    # For echo messages, we need to find contact by their WhatsApp ID (without +)
-    inbox.contact_inboxes.find_by(source_id: phone_number)
   end
 
   def find_or_create_conversation(contact_inbox)
