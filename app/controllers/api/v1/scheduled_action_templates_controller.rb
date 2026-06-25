@@ -34,8 +34,8 @@ class Api::V1::ScheduledActionTemplatesController < Api::V1::BaseController
       )
     else
       error_response(
-        code: ApiErrorCodes::VALIDATION_ERROR,
-        message: 'Template validation failed',
+        ApiErrorCodes::VALIDATION_ERROR,
+        'Template validation failed',
         details: @template.errors
       )
     end
@@ -49,8 +49,8 @@ class Api::V1::ScheduledActionTemplatesController < Api::V1::BaseController
       )
     else
       error_response(
-        code: ApiErrorCodes::VALIDATION_ERROR,
-        message: 'Template validation failed',
+        ApiErrorCodes::VALIDATION_ERROR,
+        'Template validation failed',
         details: @template.errors
       )
     end
@@ -65,8 +65,8 @@ class Api::V1::ScheduledActionTemplatesController < Api::V1::BaseController
     )
   rescue ActiveRecord::RecordNotDestroyed => e
     error_response(
-      code: ApiErrorCodes::CANNOT_DELETE_RESOURCE,
-      message: e.message
+      ApiErrorCodes::CANNOT_DELETE_RESOURCE,
+      e.message
     )
   end
 
@@ -94,8 +94,8 @@ class Api::V1::ScheduledActionTemplatesController < Api::V1::BaseController
     )
   rescue StandardError => e
     error_response(
-      code: ApiErrorCodes::VALIDATION_ERROR,
-      message: e.message
+      ApiErrorCodes::VALIDATION_ERROR,
+      e.message
     )
   end
 

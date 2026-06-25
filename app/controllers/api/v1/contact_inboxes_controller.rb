@@ -6,8 +6,8 @@ class Api::V1::ContactInboxesController < Api::V1::BaseController
     
     if contact_inbox.blank?
       error_response(
-        code: ApiErrorCodes::RESOURCE_NOT_FOUND,
-        message: 'Contact inbox not found'
+        ApiErrorCodes::RESOURCE_NOT_FOUND,
+        'Contact inbox not found'
       )
       return
     end

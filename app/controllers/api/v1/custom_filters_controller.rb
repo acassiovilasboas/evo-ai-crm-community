@@ -37,8 +37,8 @@ class Api::V1::CustomFiltersController < Api::V1::BaseController
       )
     else
       error_response(
-        code: ApiErrorCodes::VALIDATION_ERROR,
-        message: 'Validation failed',
+        ApiErrorCodes::VALIDATION_ERROR,
+        'Validation failed',
         details: @custom_filter.errors.full_messages,
         status: :unprocessable_entity
       )
@@ -53,8 +53,8 @@ class Api::V1::CustomFiltersController < Api::V1::BaseController
       )
     else
       error_response(
-        code: ApiErrorCodes::VALIDATION_ERROR,
-        message: 'Validation failed',
+        ApiErrorCodes::VALIDATION_ERROR,
+        'Validation failed',
         details: @custom_filter.errors.full_messages,
         status: :unprocessable_entity
       )
@@ -84,8 +84,8 @@ class Api::V1::CustomFiltersController < Api::V1::BaseController
     ).find(permitted_params[:id])
   rescue ActiveRecord::RecordNotFound
     error_response(
-      code: ApiErrorCodes::CUSTOM_FILTER_NOT_FOUND,
-      message: "Custom filter with id #{permitted_params[:id]} not found",
+      ApiErrorCodes::CUSTOM_FILTER_NOT_FOUND,
+      "Custom filter with id #{permitted_params[:id]} not found",
       status: :not_found
     )
   end

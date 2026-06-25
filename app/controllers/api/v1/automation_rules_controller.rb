@@ -20,8 +20,8 @@ class Api::V1::AutomationRulesController < Api::V1::BaseController
     @automation_rule = AutomationRule.find(params[:id])
   rescue ActiveRecord::RecordNotFound
     error_response(
-      code: ApiErrorCodes::AUTOMATION_RULE_NOT_FOUND,
-      message: "Automation rule with id #{params[:id]} not found",
+      ApiErrorCodes::AUTOMATION_RULE_NOT_FOUND,
+      "Automation rule with id #{params[:id]} not found",
       status: :not_found
     )
   end
@@ -55,8 +55,8 @@ class Api::V1::AutomationRulesController < Api::V1::BaseController
 
     unless @automation_rule.valid?
       return error_response(
-        code: ApiErrorCodes::VALIDATION_ERROR,
-        message: 'Validation failed',
+        ApiErrorCodes::VALIDATION_ERROR,
+        'Validation failed',
         details: @automation_rule.errors.full_messages,
         status: :unprocessable_entity
       )
@@ -84,8 +84,8 @@ class Api::V1::AutomationRulesController < Api::V1::BaseController
     rescue StandardError => e
       Rails.logger.error e
       error_response(
-        code: ApiErrorCodes::VALIDATION_ERROR,
-        message: 'Update failed',
+        ApiErrorCodes::VALIDATION_ERROR,
+        'Update failed',
         details: @automation_rule.errors.full_messages,
         status: :unprocessable_entity
       )

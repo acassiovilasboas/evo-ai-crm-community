@@ -25,8 +25,8 @@ class Api::V1::InboxMembersController < Api::V1::BaseController
     )
   rescue ActiveRecord::RecordInvalid => e
     error_response(
-      code: ApiErrorCodes::VALIDATION_ERROR,
-      message: e.message
+      ApiErrorCodes::VALIDATION_ERROR,
+      e.message
     )
   end
 
@@ -41,8 +41,8 @@ class Api::V1::InboxMembersController < Api::V1::BaseController
     )
   rescue ActiveRecord::RecordInvalid => e
     error_response(
-      code: ApiErrorCodes::VALIDATION_ERROR,
-      message: e.message
+      ApiErrorCodes::VALIDATION_ERROR,
+      e.message
     )
   end
 
@@ -58,8 +58,8 @@ class Api::V1::InboxMembersController < Api::V1::BaseController
     )
   rescue ActiveRecord::RecordInvalid => e
     error_response(
-      code: ApiErrorCodes::VALIDATION_ERROR,
-      message: e.message
+      ApiErrorCodes::VALIDATION_ERROR,
+      e.message
     )
   end
 

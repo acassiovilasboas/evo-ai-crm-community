@@ -36,8 +36,8 @@ class Api::V1::ScheduledActionsController < Api::V1::BaseController
       else
         Rails.logger.error "ScheduledAction: No system user or global admin found for service token auth"
         error_response(
-          code: ApiErrorCodes::INTERNAL_ERROR,
-          message: 'No system user available for service token authentication'
+          ApiErrorCodes::INTERNAL_ERROR,
+          'No system user available for service token authentication'
         )
         return
       end
@@ -75,8 +75,8 @@ class Api::V1::ScheduledActionsController < Api::V1::BaseController
       )
     else
       error_response(
-        code: ApiErrorCodes::VALIDATION_ERROR,
-        message: 'Scheduled action validation failed',
+        ApiErrorCodes::VALIDATION_ERROR,
+        'Scheduled action validation failed',
         details: @scheduled_action.errors
       )
     end
@@ -91,8 +91,8 @@ class Api::V1::ScheduledActionsController < Api::V1::BaseController
     )
   rescue StandardError => e
     error_response(
-      code: ApiErrorCodes::INTERNAL_ERROR,
-      message: e.message
+      ApiErrorCodes::INTERNAL_ERROR,
+      e.message
     )
   end
 

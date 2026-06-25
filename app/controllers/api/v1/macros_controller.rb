@@ -25,8 +25,8 @@ class Api::V1::MacrosController < Api::V1::BaseController
   def show
     if @macro.nil?
       return error_response(
-        code: ApiErrorCodes::MACRO_NOT_FOUND,
-        message: "Macro with id #{params[:id]} not found",
+        ApiErrorCodes::MACRO_NOT_FOUND,
+        "Macro with id #{params[:id]} not found",
         status: :not_found
       )
     end
@@ -45,8 +45,8 @@ class Api::V1::MacrosController < Api::V1::BaseController
 
     unless @macro.valid?
       return error_response(
-        code: ApiErrorCodes::VALIDATION_ERROR,
-        message: 'Validation failed',
+        ApiErrorCodes::VALIDATION_ERROR,
+        'Validation failed',
         details: @macro.errors.full_messages,
         status: :unprocessable_entity
       )
@@ -77,8 +77,8 @@ class Api::V1::MacrosController < Api::V1::BaseController
     rescue StandardError => e
       Rails.logger.error e
       error_response(
-        code: ApiErrorCodes::VALIDATION_ERROR,
-        message: 'Update failed',
+        ApiErrorCodes::VALIDATION_ERROR,
+        'Update failed',
         details: @macro.errors.full_messages,
         status: :unprocessable_entity
       )

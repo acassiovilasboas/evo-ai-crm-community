@@ -43,8 +43,8 @@ class Api::V1::AgentBotsController < Api::V1::BaseController
     )
   rescue ActiveRecord::RecordInvalid => e
     error_response(
-      code: ApiErrorCodes::VALIDATION_ERROR,
-      message: e.message
+      ApiErrorCodes::VALIDATION_ERROR,
+      e.message
     )
   end
 
@@ -58,8 +58,8 @@ class Api::V1::AgentBotsController < Api::V1::BaseController
     )
   rescue ActiveRecord::RecordInvalid => e
     error_response(
-      code: ApiErrorCodes::VALIDATION_ERROR,
-      message: e.message
+      ApiErrorCodes::VALIDATION_ERROR,
+      e.message
     )
   end
 
@@ -88,8 +88,8 @@ class Api::V1::AgentBotsController < Api::V1::BaseController
         )
       else
         error_response(
-          code: ApiErrorCodes::CANNOT_DELETE_RESOURCE,
-          message: @agent_bot.errors.full_messages.join(', ')
+          ApiErrorCodes::CANNOT_DELETE_RESOURCE,
+          @agent_bot.errors.full_messages.join(', ')
         )
       end
     end
@@ -106,8 +106,8 @@ class Api::V1::AgentBotsController < Api::V1::BaseController
       )
     else
       error_response(
-        code: ApiErrorCodes::INTERNAL_ERROR,
-        message: "Failed to delete agent bot: #{e.message}"
+        ApiErrorCodes::INTERNAL_ERROR,
+        "Failed to delete agent bot: #{e.message}"
       )
     end
   end
@@ -122,8 +122,8 @@ class Api::V1::AgentBotsController < Api::V1::BaseController
     )
   rescue StandardError => e
     error_response(
-      code: ApiErrorCodes::INTERNAL_ERROR,
-      message: e.message
+      ApiErrorCodes::INTERNAL_ERROR,
+      e.message
     )
   end
 

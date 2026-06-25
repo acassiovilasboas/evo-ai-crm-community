@@ -43,8 +43,8 @@ class Api::V1::TeamsController < Api::V1::BaseController
       )
     else
       error_response(
-        code: ApiErrorCodes::VALIDATION_ERROR,
-        message: 'Validation failed',
+        ApiErrorCodes::VALIDATION_ERROR,
+        'Validation failed',
         details: @team.errors.full_messages,
         status: :unprocessable_entity
       )
@@ -59,8 +59,8 @@ class Api::V1::TeamsController < Api::V1::BaseController
       )
     else
       error_response(
-        code: ApiErrorCodes::VALIDATION_ERROR,
-        message: 'Validation failed',
+        ApiErrorCodes::VALIDATION_ERROR,
+        'Validation failed',
         details: @team.errors.full_messages,
         status: :unprocessable_entity
       )
@@ -81,8 +81,8 @@ class Api::V1::TeamsController < Api::V1::BaseController
     @team = Team.find(params[:id])
   rescue ActiveRecord::RecordNotFound
     error_response(
-      code: ApiErrorCodes::TEAM_NOT_FOUND,
-      message: "Team with id #{params[:id]} not found",
+      ApiErrorCodes::TEAM_NOT_FOUND,
+      "Team with id #{params[:id]} not found",
       status: :not_found
     )
   end

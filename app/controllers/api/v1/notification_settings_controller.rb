@@ -19,8 +19,8 @@ class Api::V1::NotificationSettingsController < Api::V1::BaseController
     )
   rescue ActiveRecord::RecordInvalid => e
     error_response(
-      code: ApiErrorCodes::VALIDATION_ERROR,
-      message: e.message
+      ApiErrorCodes::VALIDATION_ERROR,
+      e.message
     )
   end
 

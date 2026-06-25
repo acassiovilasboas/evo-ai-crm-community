@@ -6,8 +6,8 @@ class Api::V1::UploadController < Api::V1::BaseController
                create_from_url
              else
                error_response(
-                 code: ApiErrorCodes::MISSING_REQUIRED_FIELD,
-                 message: 'No file or URL provided'
+                 ApiErrorCodes::MISSING_REQUIRED_FIELD,
+                 'No file or URL provided'
                )
                return
              end
@@ -44,8 +44,8 @@ class Api::V1::UploadController < Api::V1::BaseController
     uri
   rescue URI::InvalidURIError, SocketError
     error_response(
-      code: ApiErrorCodes::INVALID_PARAMETER,
-      message: 'Invalid URL provided'
+      ApiErrorCodes::INVALID_PARAMETER,
+      'Invalid URL provided'
     )
     nil
   end
@@ -60,18 +60,18 @@ class Api::V1::UploadController < Api::V1::BaseController
     end
   rescue OpenURI::HTTPError => e
     error_response(
-      code: ApiErrorCodes::EXTERNAL_SERVICE_ERROR,
-      message: "Failed to fetch file from URL: #{e.message}"
+      ApiErrorCodes::EXTERNAL_SERVICE_ERROR,
+      "Failed to fetch file from URL: #{e.message}"
     )
   rescue SocketError
     error_response(
-      code: ApiErrorCodes::INVALID_PARAMETER,
-      message: 'Invalid URL provided'
+      ApiErrorCodes::INVALID_PARAMETER,
+      'Invalid URL provided'
     )
   rescue StandardError => e
     error_response(
-      code: ApiErrorCodes::INTERNAL_ERROR,
-      message: 'An unexpected error occurred'
+      ApiErrorCodes::INTERNAL_ERROR,
+      'An unexpected error occurred'
     )
   end
 
