@@ -127,6 +127,55 @@ RSpec.describe Api::V1::PipelineItemsController, type: :controller do
         expect(pipeline_item.pipeline_stage_id).to eq(stage_one.id)
       end
     end
+
+    # EVO-1915 (e2e N7): notes must persist even when the stage is unchanged, and
+    # an update with nothing to write must NOT report "updated successfully".
+    context 'when notes are provided without a stage change (EVO-1915)' do
+      it 'persists the notes on the latest movement (200)' do
+        patch :update, params: {
+          pipeline_id: pipeline.id,
+          id: pipeline_item.id,
+          notes: 'Follow-up scheduled'
+        }
+
+        expect(response).to have_http_status(:ok)
+        expect(pipeline_item.stage_movements.order(:created_at).last.notes)
+          .to eq('Follow-up scheduled')
+      end
+
+      it 'does not create an extra movement just to carry the note' do
+        expect do
+          patch :update, params: {
+            pipeline_id: pipeline.id,
+            id: pipeline_item.id,
+            notes: 'Reuses the entry movement'
+          }
+        end.not_to(change { pipeline_item.stage_movements.count })
+      end
+    end
+
+    context 'when the request has no stage, custom_fields or notes (EVO-1915)' do
+      it 'returns an explicit no-op error instead of a false 200' do
+        patch :update, params: {
+          pipeline_id: pipeline.id,
+          id: pipeline_item.id
+        }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        body = response.parsed_body
+        expect(body['success']).to be(false)
+        expect(body.dig('error', 'code')).to eq(ApiErrorCodes::BUSINESS_RULE_VIOLATION)
+      end
+
+      it 'writes nothing to the item' do
+        expect do
+          patch :update, params: {
+            pipeline_id: pipeline.id,
+            id: pipeline_item.id
+          }
+        end.not_to(change { pipeline_item.reload.updated_at })
+      end
+    end
   end
 
   # EVO-1272 [10.14]: endpoint consumed by the evo-flow Journey "Move to
