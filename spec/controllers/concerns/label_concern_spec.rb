@@ -48,13 +48,15 @@ RSpec.describe LabelConcern, type: :concern do
       before do
         # Stub the UUID→title lookup in isolation. The concern only relies on
         # `Label.where(id: uuids).pluck(:id, :title)`, so we mock that surface
-        # rather than touching the database.
-        relation = double('Label::Relation')
-        allow(Label).to receive(:where).with(id: array_including(hot_lead_id, vip_id))
-                                       .and_return(relation)
-        allow(relation).to receive(:pluck).with(:id, :title).and_return(
-          [[hot_lead_id, 'hot-lead'], [vip_id, 'vip']]
-        )
+        # rather than touching the database. The concern partitions inputs and
+        # queries ONLY the UUID subset, so the stub must answer for whatever
+        # subset each example passes (e.g. just `[vip_id]` when mixed with a
+        # plain title) — not a fixed pair.
+        titles_by_id = { hot_lead_id => 'hot-lead', vip_id => 'vip' }
+        allow(Label).to receive(:where) do |args|
+          ids = Array(args[:id])
+          double('Label::Relation', pluck: ids.filter_map { |id| [id, titles_by_id[id]] if titles_by_id[id] })
+        end
       end
 
       it 'resolves all UUIDs to their titles' do
@@ -75,12 +77,16 @@ RSpec.describe LabelConcern, type: :concern do
         allow(Label).to receive(:where).with(id: [ghost_id]).and_return(relation)
       end
 
-      it 'silently drops UUIDs that no longer correspond to a label' do
-        expect(host.resolve_label_titles([ghost_id])).to eq([])
+      # EVO-1928: a UUID that resolves to no label is preserved as a literal
+      # token (`titles_by_id[id] || id`) rather than dropped. This keeps the
+      # caller's set intact so a still-valid label posted alongside an orphan id
+      # is never silently lost.
+      it 'preserves UUIDs that no longer correspond to a label as literals' do
+        expect(host.resolve_label_titles([ghost_id])).to eq([ghost_id])
       end
 
-      it 'preserves non-UUID entries even when all UUIDs are unresolvable' do
-        expect(host.resolve_label_titles(['vip', ghost_id])).to eq(['vip'])
+      it 'preserves both non-UUID entries and unresolvable UUIDs' do
+        expect(host.resolve_label_titles(['vip', ghost_id])).to eq(['vip', ghost_id])
       end
     end
   end
