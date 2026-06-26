@@ -17,7 +17,8 @@ RSpec.describe Sendgrid::Client do
       api_key: 'SG.key-x',
       from_email: 'news@acme.com',
       from_name: 'Acme News',
-      reply_to: nil
+      reply_to: nil,
+      email_signature: nil
     )
   end
   let(:contact) { instance_double(Contact, email: 'jane@acme.com') }
@@ -52,6 +53,7 @@ RSpec.describe Sendgrid::Client do
       expect(a_request(:post, mail_send_url).with do |req|
         body = JSON.parse(req.body)
         personalization = body['personalizations'].first
+        content = body['content'].first
         req.headers['Authorization'] == 'Bearer SG.key-x' &&
           personalization['to'] == [{ 'email' => 'jane@acme.com' }] &&
           personalization['custom_args'] == {
@@ -59,7 +61,8 @@ RSpec.describe Sendgrid::Client do
           } &&
           body['from'] == { 'email' => 'news@acme.com', 'name' => 'Acme News' } &&
           body['subject'] == 'Promo' &&
-          body['content'] == [{ 'type' => 'text/html', 'value' => '<h1>Hi</h1>' }]
+          content['type'] == 'text/html' &&
+          content['value'].include?('<h1>Hi</h1>')
       end).to have_been_made
     end
 
@@ -79,6 +82,91 @@ RSpec.describe Sendgrid::Client do
       result = client.deliver(message: message)
 
       expect(result).to include(success: true, status: 202)
+    end
+  end
+
+  # EVO-1721: parity with ConversationReplyMailer#email_reply rendering
+  # (markdown->HTML, HTML pass-through, channel email_signature).
+  describe '#deliver — html rendering parity with SMTP path' do
+    before { stub_request(:post, mail_send_url).to_return(status: 202, body: '') }
+
+    let(:markdown_message) do
+      instance_double(
+        Message,
+        id: 'msg-md',
+        conversation: conversation,
+        content: '**bold**',
+        additional_attributes: nil
+      )
+    end
+
+    it 'renders markdown content as HTML in the payload value' do
+      allow(Messages::StatusUpdateService).to receive(:new).and_return(status_service)
+
+      client.deliver(message: markdown_message)
+
+      expect(a_request(:post, mail_send_url).with do |req|
+        value = JSON.parse(req.body)['content'].first['value']
+        value.include?('<strong>bold</strong>') && value.exclude?('**bold**')
+      end).to have_been_made
+    end
+
+    it 'passes pre-rendered HTML content through without double-rendering' do
+      html = '<!DOCTYPE html><html><body><p>Hi</p></body></html>'
+      html_message = instance_double(
+        Message, id: 'msg-html', conversation: conversation, content: html, additional_attributes: nil
+      )
+      allow(Messages::StatusUpdateService).to receive(:new).and_return(status_service)
+
+      client.deliver(message: html_message)
+
+      expect(a_request(:post, mail_send_url).with do |req|
+        value = JSON.parse(req.body)['content'].first['value']
+        value.include?('<!DOCTYPE html>') && value.exclude?('&lt;!DOCTYPE')
+      end).to have_been_made
+    end
+
+    it 'appends the channel email_signature block when present' do
+      signed_channel = instance_double(
+        Channel::Sendgrid,
+        api_key: 'SG.key-x',
+        from_email: 'news@acme.com',
+        from_name: 'Acme News',
+        reply_to: nil,
+        email_signature: '<p>Best, Acme</p>'
+      )
+      allow(Messages::StatusUpdateService).to receive(:new).and_return(status_service)
+
+      described_class.new(signed_channel).deliver(message: message)
+
+      expect(a_request(:post, mail_send_url).with do |req|
+        value = JSON.parse(req.body)['content'].first['value']
+        value.include?('<p>Best, Acme</p>') && value.include?('border-top')
+      end).to have_been_made
+    end
+
+    # AC2 lock: any drift in template path, layout flag, or assigns list will
+    # make the SendGrid value diverge from what ApplicationController.renderer
+    # produces with the same inputs. Catches accidental rewording of the
+    # render call that silently breaks parity with the SMTP path.
+    it 'matches ApplicationController.renderer with the same template + assigns byte-for-byte (AC2)' do
+      expected = ApplicationController.renderer.render(
+        template: 'mailers/conversation_reply_mailer/email_reply',
+        layout: false,
+        assigns: {
+          message: message,
+          channel: channel,
+          conversation: conversation,
+          large_attachments: []
+        }
+      )
+      allow(Messages::StatusUpdateService).to receive(:new).and_return(status_service)
+
+      client.deliver(message: message)
+
+      expect(a_request(:post, mail_send_url).with do |req|
+        JSON.parse(req.body)['content'].first['value'] == expected
+      end).to have_been_made
     end
   end
 
