@@ -145,11 +145,16 @@ RSpec.describe Sendgrid::Client do
       end).to have_been_made
     end
 
-    # AC2 lock: any drift in template path, layout flag, or assigns list will
-    # make the SendGrid value diverge from what ApplicationController.renderer
-    # produces with the same inputs. Catches accidental rewording of the
-    # render call that silently breaks parity with the SMTP path.
-    it 'matches ApplicationController.renderer with the same template + assigns byte-for-byte (AC2)' do
+    # Structural lock on the render call contract — NOT an AC2 SMTP-parity lock.
+    # ApplicationMailer.renderer / ActionMailer::Base.renderer are not available
+    # in this Rails version, so a non-tautological comparison against the actual
+    # SMTP renderer is not feasible without spinning up real factories. AC2
+    # parity itself is validated via the manual rails-runner smoke documented
+    # in the PR (Sendgrid::Client#render_html vs ConversationReplyMailer#email_reply.body.to_s,
+    # byte-for-byte). What this spec catches: accidental drift in template path,
+    # layout flag, or the assigns keys/values the implementation passes — any
+    # such change here will desync from the smoke baseline and warrant a re-run.
+    it 'locks the ApplicationController.renderer call contract (template + layout + assigns)' do
       expected = ApplicationController.renderer.render(
         template: 'mailers/conversation_reply_mailer/email_reply',
         layout: false,
