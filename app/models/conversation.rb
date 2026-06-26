@@ -66,7 +66,7 @@ class Conversation < ApplicationRecord
   validates :uuid, uniqueness: true
   validate :validate_referer_url
 
-  enum status: { open: 0, resolved: 1, pending: 2, snoozed: 3, ended: 4 }
+  enum status: { open: 0, resolved: 1, pending: 2, snoozed: 3 }
   enum priority: { low: 0, medium: 1, high: 2, urgent: 3 }
 
   scope :unassigned, -> { where(assignee_id: nil) }
@@ -123,7 +123,6 @@ class Conversation < ApplicationRecord
   after_create_commit :assign_to_default_pipeline
   after_update_commit :publish_conversation_updated
   after_update_commit :publish_conversation_resolved
-  after_update_commit :sync_session_on_ended
   after_destroy_commit :publish_conversation_deleted
   after_destroy_commit :sync_session_delete
 
@@ -389,13 +388,6 @@ class Conversation < ApplicationRecord
       performed_by: Current.executed_by,
       api_access_token: Current.api_access_token
     })
-  end
-
-  def sync_session_on_ended
-    return unless saved_change_to_status? && ended?
-    return unless inbox&.active_bot?
-
-    AgentBots::SessionSyncService.delete_session_for_conversation(self)
   end
 
   def sync_session_delete

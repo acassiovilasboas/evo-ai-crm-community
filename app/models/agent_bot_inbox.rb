@@ -54,7 +54,7 @@ class AgentBotInbox < ApplicationRecord
   enum status: { active: 0, inactive: 1 }
 
   # Valid conversation statuses
-  VALID_CONVERSATION_STATUSES = %w[open resolved pending snoozed ended].freeze
+  VALID_CONVERSATION_STATUSES = %w[open resolved pending snoozed].freeze
 
   # Valid Facebook interaction types
   VALID_FACEBOOK_INTERACTION_TYPES = %w[comments_only messages_only both].freeze
