@@ -10,6 +10,12 @@ module BotRuntime
 
     def delegate
       event = build_message_event
+
+      if event[:message_content].blank?
+        Rails.logger.info "[BotRuntime::DelegationService] Skipping delegation - message #{@message.id} has no text content"
+        return
+      end
+
       BotRuntime::SendEventJob.perform_later(event)
 
       Rails.logger.info "[BotRuntime::DelegationService] Event enqueued: " \
